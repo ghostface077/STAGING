@@ -1,5 +1,6 @@
 """Gestion du parc informatique (équipements)."""
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -7,7 +8,7 @@ from app.deps import get_current_user, require_manager
 from app.models.equipment import Equipment
 from app.models.role import ROLE_RESPONSABLE_IT, ROLE_ADMINISTRATEUR, ROLE_TECHNICIEN
 from app.models.user import User
-from app.schemas.common import Message
+from app.schemas.common import Message, Page, PaginationParams
 from app.schemas.equipment import EquipmentCreate, EquipmentOut, EquipmentUpdate
 from app.schemas.ticket import TicketListItem
 
@@ -20,20 +21,9 @@ def _base_query(db: Session):
     return db.query(Equipment).options(joinedload(Equipment.user), joinedload(Equipment.department))
 
 
-@router.get("", response_model=list[EquipmentOut])
-def list_equipment(
-    department_id: int | None = None,
-    status_filter: str | None = None,
-    search: str | None = None,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+def _apply_equipment_filters(
+    query, *, current_user: User, department_id: int | None, status_filter: str | None, search: str | None
 ):
-    """
-    Liste les équipements du parc, avec filtres optionnels.
-    Le personnel support voit tout le parc ; un simple utilisateur ne voit que son propre matériel
-    (nécessaire notamment pour sélectionner l'équipement concerné lors de la création d'un ticket).
-    """
-    query = _base_query(db)
     if current_user.role.name not in STAFF_ROLES:
         query = query.filter(Equipment.user_id == current_user.id)
     if department_id:
@@ -48,7 +38,34 @@ def list_equipment(
             | (Equipment.model.ilike(like))
             | (Equipment.serial_number.ilike(like))
         )
-    return query.order_by(Equipment.asset_number).all()
+    return query
+
+
+@router.get("", response_model=Page[EquipmentOut])
+def list_equipment(
+    department_id: int | None = None,
+    status_filter: str | None = None,
+    search: str | None = None,
+    pagination: PaginationParams = Depends(),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Liste paginée des équipements du parc, avec filtres optionnels.
+    Le personnel support voit tout le parc ; un simple utilisateur ne voit que son propre matériel
+    (nécessaire notamment pour sélectionner l'équipement concerné lors de la création d'un ticket).
+    """
+    filters = dict(current_user=current_user, department_id=department_id, status_filter=status_filter, search=search)
+
+    total = _apply_equipment_filters(db.query(func.count(Equipment.id)), **filters).scalar()
+    equipments = (
+        _apply_equipment_filters(_base_query(db), **filters)
+        .order_by(Equipment.asset_number)
+        .offset(pagination.offset)
+        .limit(pagination.page_size)
+        .all()
+    )
+    return Page.build(items=equipments, total=total, page=pagination.page, page_size=pagination.page_size)
 
 
 def _can_view_equipment(equipment: Equipment, user: User) -> bool:

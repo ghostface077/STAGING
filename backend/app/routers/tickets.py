@@ -5,7 +5,7 @@ changement de statut/priorité, résolution, fermeture, réouverture, escalade).
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -20,7 +20,7 @@ from app.models.status import (
 from app.models.status import Status as StatusModel
 from app.models.ticket import Ticket
 from app.models.user import User
-from app.schemas.common import Message
+from app.schemas.common import Message, Page, PaginationParams
 from app.schemas.ticket_history import TicketHistoryOut
 from app.schemas.ticket import (
     TicketAssignRequest,
@@ -97,21 +97,23 @@ def _mark_first_response_if_needed(ticket: Ticket) -> None:
         ticket.first_response_at = datetime.now(timezone.utc)
 
 
-@router.get("", response_model=list[TicketListItem])
-def list_tickets(
-    status_id: int | None = None,
-    priority_id: int | None = None,
-    category_id: int | None = None,
-    technician_id: int | None = None,
-    team_id: int | None = None,
-    requester_id: int | None = None,
-    unassigned: bool | None = None,
-    search: str | None = None,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+def _apply_ticket_filters(
+    query,
+    *,
+    current_user: User,
+    status_id: int | None,
+    priority_id: int | None,
+    category_id: int | None,
+    technician_id: int | None,
+    team_id: int | None,
+    requester_id: int | None,
+    unassigned: bool | None,
+    search: str | None,
 ):
-    """Liste les tickets visibles par l'utilisateur connecté, avec filtres de recherche avancée."""
-    query = _ticket_query(db)
+    """Applique les règles de portée par rôle et les filtres de recherche à une
+    requête de tickets. Extrait de `list_tickets` pour être appliqué à la fois
+    à la requête de comptage (COUNT) et à la requête de page (correctif #07),
+    sans dupliquer la logique entre les deux."""
     role = current_user.role.name
 
     if role == ROLE_UTILISATEUR:
@@ -141,8 +143,43 @@ def list_tickets(
         like = f"%{search}%"
         query = query.filter(or_(Ticket.reference.ilike(like), Ticket.title.ilike(like)))
 
-    tickets = query.order_by(Ticket.created_at.desc()).all()
-    return [_to_list_item(ticket) for ticket in tickets]
+    return query
+
+
+@router.get("", response_model=Page[TicketListItem])
+def list_tickets(
+    status_id: int | None = None,
+    priority_id: int | None = None,
+    category_id: int | None = None,
+    technician_id: int | None = None,
+    team_id: int | None = None,
+    requester_id: int | None = None,
+    unassigned: bool | None = None,
+    search: str | None = None,
+    pagination: PaginationParams = Depends(),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Liste paginée des tickets visibles par l'utilisateur connecté, avec filtres de recherche avancée."""
+    filters = dict(
+        current_user=current_user, status_id=status_id, priority_id=priority_id, category_id=category_id,
+        technician_id=technician_id, team_id=team_id, requester_id=requester_id,
+        unassigned=unassigned, search=search,
+    )
+
+    total = _apply_ticket_filters(db.query(func.count(Ticket.id)), **filters).scalar()
+
+    tickets = (
+        _apply_ticket_filters(_ticket_query(db), **filters)
+        .order_by(Ticket.created_at.desc())
+        .offset(pagination.offset)
+        .limit(pagination.page_size)
+        .all()
+    )
+
+    return Page.build(
+        items=[_to_list_item(t) for t in tickets], total=total, page=pagination.page, page_size=pagination.page_size
+    )
 
 
 @router.get("/{ticket_id}", response_model=TicketOut)

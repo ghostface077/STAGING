@@ -15,6 +15,7 @@ import type {
   Equipment,
   KnowledgeBaseArticle,
   Notification,
+  Page,
   Priority,
   Role,
   SLA,
@@ -76,7 +77,7 @@ export const authApi = {
 
 // --- Utilisateurs ---
 export const usersApi = {
-  list: (params?: Record<string, string | number | undefined>) => apiClient.get<User[]>("/users", { params }),
+  list: (params?: Record<string, string | number | undefined>) => apiClient.get<Page<User>>("/users", { params }),
   get: (id: number) => apiClient.get<User>(`/users/${id}`),
   create: (payload: Record<string, unknown>) => apiClient.post<User>("/users", payload),
   update: (id: number, payload: Record<string, unknown>) => apiClient.put<User>(`/users/${id}`, payload),
@@ -140,7 +141,7 @@ export const slasApi = {
 
 // --- Équipements ---
 export const equipmentApi = {
-  list: (params?: Record<string, string | number | undefined>) => apiClient.get<Equipment[]>("/equipment", { params }),
+  list: (params?: Record<string, string | number | undefined>) => apiClient.get<Page<Equipment>>("/equipment", { params }),
   get: (id: number) => apiClient.get<Equipment>(`/equipment/${id}`),
   tickets: (id: number) => apiClient.get<TicketListItem[]>(`/equipment/${id}/tickets`),
   create: (payload: Record<string, unknown>) => apiClient.post<Equipment>("/equipment", payload),
@@ -151,7 +152,7 @@ export const equipmentApi = {
 // --- Tickets ---
 export const ticketsApi = {
   list: (params?: Record<string, string | number | boolean | undefined>) =>
-    apiClient.get<TicketListItem[]>("/tickets", { params }),
+    apiClient.get<Page<TicketListItem>>("/tickets", { params }),
   get: (id: number) => apiClient.get<Ticket>(`/tickets/${id}`),
   history: (id: number) => apiClient.get<TicketHistoryEntry[]>(`/tickets/${id}/history`),
   create: (payload: Record<string, unknown>) => apiClient.post<Ticket>("/tickets", payload),
@@ -202,7 +203,7 @@ export const notificationsApi = {
 // --- Base de connaissances ---
 export const knowledgeBaseApi = {
   list: (params?: Record<string, string | number | undefined>) =>
-    apiClient.get<KnowledgeBaseArticle[]>("/knowledge-base", { params }),
+    apiClient.get<Page<KnowledgeBaseArticle>>("/knowledge-base", { params }),
   get: (id: number) => apiClient.get<KnowledgeBaseArticle>(`/knowledge-base/${id}`),
   create: (payload: Record<string, unknown>) => apiClient.post<KnowledgeBaseArticle>("/knowledge-base", payload),
   update: (id: number, payload: Record<string, unknown>) =>

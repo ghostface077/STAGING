@@ -1,12 +1,13 @@
 """Gestion des utilisateurs (réservée aux Responsables IT et Administrateurs)."""
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.deps import get_current_user, require_manager
 from app.models.role import Role
 from app.models.user import User
-from app.schemas.common import Message
+from app.schemas.common import Message, Page, PaginationParams
 from app.schemas.user import ChangePassword, SelfProfileUpdate, UserCreate, UserOut, UserUpdate
 from app.security import hash_password, verify_password
 from app.services.history_service import log_audit
@@ -18,16 +19,7 @@ def _base_query(db: Session):
     return db.query(User).options(joinedload(User.role), joinedload(User.department))
 
 
-@router.get("", response_model=list[UserOut])
-def list_users(
-    role: str | None = None,
-    department_id: int | None = None,
-    search: str | None = None,
-    current_user: User = Depends(require_manager),
-    db: Session = Depends(get_db),
-):
-    """Liste les utilisateurs, avec filtres optionnels par rôle, service ou recherche texte."""
-    query = _base_query(db)
+def _apply_user_filters(query, *, role: str | None, department_id: int | None, search: str | None):
     if role:
         query = query.join(Role).filter(Role.name == role)
     if department_id:
@@ -37,7 +29,30 @@ def list_users(
         query = query.filter(
             (User.first_name.ilike(like)) | (User.last_name.ilike(like)) | (User.email.ilike(like))
         )
-    return query.order_by(User.last_name).all()
+    return query
+
+
+@router.get("", response_model=Page[UserOut])
+def list_users(
+    role: str | None = None,
+    department_id: int | None = None,
+    search: str | None = None,
+    pagination: PaginationParams = Depends(),
+    current_user: User = Depends(require_manager),
+    db: Session = Depends(get_db),
+):
+    """Liste paginée des utilisateurs, avec filtres optionnels par rôle, service ou recherche texte."""
+    filters = dict(role=role, department_id=department_id, search=search)
+
+    total = _apply_user_filters(db.query(func.count(User.id)), **filters).scalar()
+    users = (
+        _apply_user_filters(_base_query(db), **filters)
+        .order_by(User.last_name)
+        .offset(pagination.offset)
+        .limit(pagination.page_size)
+        .all()
+    )
+    return Page.build(items=users, total=total, page=pagination.page, page_size=pagination.page_size)
 
 
 @router.get("/{user_id}", response_model=UserOut)

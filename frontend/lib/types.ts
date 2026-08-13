@@ -239,3 +239,12 @@ export interface SLAOverview {
 }
 
 export type RoleName = "Utilisateur" | "Technicien" | "Responsable IT" | "Administrateur";
+
+/** Enveloppe de pagination serveur (correctif #07), miroir de `Page` côté backend. */
+export interface Page<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}

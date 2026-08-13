@@ -120,7 +120,9 @@ def test_manipulating_technician_id_on_ticket_list_leaks_nothing(client, db_sess
         "/api/tickets", params={"technician_id": technicien.id}, headers=auth_headers(client, "intrus3@test.example")
     )
     assert response.status_code == 200  # la route existe et répond normalement...
-    assert response.json() == []  # ...mais ne renvoie aucun ticket d'un autre utilisateur
+    body = response.json()
+    assert body["items"] == []  # ...mais ne renvoie aucun ticket d'un autre utilisateur
+    assert body["total"] == 0
     assert technicien.full_name not in response.text
 
 

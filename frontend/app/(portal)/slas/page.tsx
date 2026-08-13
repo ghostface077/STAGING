@@ -15,10 +15,13 @@ import { ticketsApi } from "@/lib/api";
 export default function SlasSupervisionPage() {
   const { data: slas, isLoading } = useSlas();
 
-  const { data: allTickets, isLoading: isLoadingTickets } = useQuery({
+  // Vue de supervision sans pagination dédiée : page_size au maximum autorisé
+  // par l'API (100) pour limiter le changement de comportement (correctif #07).
+  const { data: allTicketsPage, isLoading: isLoadingTickets } = useQuery({
     queryKey: ["tickets", "sla-supervision"],
-    queryFn: () => ticketsApi.list().then((res) => res.data),
+    queryFn: () => ticketsApi.list({ page_size: 100 }).then((res) => res.data),
   });
+  const allTickets = allTicketsPage?.items;
 
   return (
     <div>

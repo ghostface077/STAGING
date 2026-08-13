@@ -12,9 +12,16 @@ import { useAuth } from "@/lib/auth-context";
 export default function AdminSettingsPage() {
   const { user } = useAuth();
 
-  const { data: users } = useQuery({ queryKey: ["users", "count"], queryFn: () => usersApi.list().then((r) => r.data) });
+  // page_size=1 : seul le total nous intéresse ici, pas les éléments eux-mêmes.
+  const { data: users } = useQuery({
+    queryKey: ["users", "count"],
+    queryFn: () => usersApi.list({ page_size: 1 }).then((r) => r.data),
+  });
   const { data: departments } = useQuery({ queryKey: ["departments", "count"], queryFn: () => departmentsApi.list().then((r) => r.data) });
-  const { data: equipmentList } = useQuery({ queryKey: ["equipment", "count"], queryFn: () => equipmentApi.list().then((r) => r.data) });
+  const { data: equipmentList } = useQuery({
+    queryKey: ["equipment", "count"],
+    queryFn: () => equipmentApi.list({ page_size: 1 }).then((r) => r.data),
+  });
   const { data: stats } = useQuery({ queryKey: ["dashboard", "statistics"], queryFn: () => dashboardApi.statistics().then((r) => r.data) });
 
   return (
@@ -22,9 +29,9 @@ export default function AdminSettingsPage() {
       <PageHeader title="Paramètres" description="Informations générales sur l'installation et l'état du système." />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Utilisateurs" value={users?.length ?? "—"} icon={Users} />
+        <StatCard label="Utilisateurs" value={users?.total ?? "—"} icon={Users} />
         <StatCard label="Services" value={departments?.length ?? "—"} icon={Building2} />
-        <StatCard label="Équipements" value={equipmentList?.length ?? "—"} icon={Laptop} />
+        <StatCard label="Équipements" value={equipmentList?.total ?? "—"} icon={Laptop} />
         <StatCard label="Tickets" value={stats?.total_tickets ?? "—"} icon={Ticket} />
       </div>
 

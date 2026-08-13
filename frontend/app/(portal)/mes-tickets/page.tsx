@@ -12,14 +12,17 @@ export default function MyTicketsPage() {
   const { user } = useAuth();
   const isRequesterView = user?.role?.name === "Utilisateur";
 
-  const { data: tickets, isLoading } = useQuery({
+  // Sans pagination dédiée : page_size au maximum autorisé par l'API (100)
+  // pour limiter le changement de comportement (correctif #07).
+  const { data, isLoading } = useQuery({
     queryKey: ["tickets", "mes-tickets", user?.id],
     queryFn: () =>
       ticketsApi
-        .list(isRequesterView ? {} : { technician_id: user?.id })
+        .list(isRequesterView ? { page_size: 100 } : { technician_id: user?.id, page_size: 100 })
         .then((res) => res.data),
     enabled: !!user,
   });
+  const tickets = data?.items;
 
   return (
     <div>

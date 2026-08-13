@@ -16,6 +16,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Pagination } from "@/components/ui/pagination";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -25,6 +26,8 @@ import { equipmentApi, getErrorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import type { Equipment } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
+
+const PAGE_SIZE = 20;
 
 const equipmentSchema = z.object({
   asset_number: z.string().min(1, "Le numéro d'actif est obligatoire."),
@@ -43,16 +46,20 @@ export default function EquipmentPage() {
   const { toast } = useToast();
   const { data: departments } = useDepartments();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Equipment | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isManager = user?.role?.name === "Responsable IT" || user?.role?.name === "Administrateur";
 
-  const { data: equipmentList, isLoading } = useQuery({
-    queryKey: ["equipment", { search }],
-    queryFn: () => equipmentApi.list({ search: search || undefined }).then((res) => res.data),
+  const { data, isLoading } = useQuery({
+    queryKey: ["equipment", { search, page }],
+    queryFn: () =>
+      equipmentApi.list({ search: search || undefined, page, page_size: PAGE_SIZE }).then((res) => res.data),
+    placeholderData: (previous) => previous,
   });
+  const equipmentList = data?.items;
 
   const { data: equipmentTickets, isLoading: isLoadingTickets } = useQuery({
     queryKey: ["equipment", selected?.id, "tickets"],
@@ -98,7 +105,15 @@ export default function EquipmentPage() {
 
       <div className="relative mb-4 max-w-md">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Rechercher par numéro d'actif, marque, modèle…" className="pl-8" />
+        <Input
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setPage(1);
+          }}
+          placeholder="Rechercher par numéro d'actif, marque, modèle…"
+          className="pl-8"
+        />
       </div>
 
       <Card>
@@ -136,6 +151,7 @@ export default function EquipmentPage() {
             </TableBody>
           </Table>
         )}
+        <Pagination page={page} pageCount={data?.pages ?? 1} onPageChange={setPage} totalItems={data?.total} pageSize={PAGE_SIZE} />
       </Card>
 
       <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>

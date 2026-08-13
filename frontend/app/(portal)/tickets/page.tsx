@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ListFilter, PlusCircle, Search, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { PageHeader } from "@/components/common/page-header";
 import { Pagination } from "@/components/ui/pagination";
@@ -32,8 +32,8 @@ export default function TicketsPage() {
   const { data: priorities } = usePriorities();
   const { data: categories } = useCategories();
 
-  const { data: tickets, isLoading } = useQuery({
-    queryKey: ["tickets", { search, statusId, priorityId, categoryId }],
+  const { data, isLoading } = useQuery({
+    queryKey: ["tickets", { search, statusId, priorityId, categoryId, page }],
     queryFn: () =>
       ticketsApi
         .list({
@@ -41,16 +41,15 @@ export default function TicketsPage() {
           status_id: statusId !== "tous" ? Number(statusId) : undefined,
           priority_id: priorityId !== "toutes" ? Number(priorityId) : undefined,
           category_id: categoryId !== "toutes" ? Number(categoryId) : undefined,
+          page,
+          page_size: PAGE_SIZE,
         })
         .then((res) => res.data),
+    placeholderData: (previous) => previous, // évite un flash de tableau vide entre deux pages
   });
 
-  const pageCount = tickets ? Math.max(1, Math.ceil(tickets.length / PAGE_SIZE)) : 1;
-  const paginated = useMemo(() => {
-    if (!tickets) return [];
-    const start = (page - 1) * PAGE_SIZE;
-    return tickets.slice(start, start + PAGE_SIZE);
-  }, [tickets, page]);
+  const tickets = data?.items ?? [];
+  const pageCount = data?.pages ?? 1;
 
   const resetFilters = () => {
     setSearch("");
@@ -126,8 +125,8 @@ export default function TicketsPage() {
           )}
         </div>
 
-        <TicketTable tickets={paginated} isLoading={isLoading} />
-        <Pagination page={page} pageCount={pageCount} onPageChange={setPage} totalItems={tickets?.length} pageSize={PAGE_SIZE} />
+        <TicketTable tickets={tickets} isLoading={isLoading} />
+        <Pagination page={page} pageCount={pageCount} onPageChange={setPage} totalItems={data?.total} pageSize={PAGE_SIZE} />
       </Card>
     </div>
   );

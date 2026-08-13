@@ -8,10 +8,13 @@ import { Card } from "@/components/ui/card";
 import { ticketsApi } from "@/lib/api";
 
 export default function UnassignedTicketsPage() {
-  const { data: tickets, isLoading } = useQuery({
+  // Sans pagination dédiée : page_size au maximum autorisé par l'API (100)
+  // pour limiter le changement de comportement (correctif #07).
+  const { data, isLoading } = useQuery({
     queryKey: ["tickets", "non-assignes"],
-    queryFn: () => ticketsApi.list({ unassigned: true }).then((res) => res.data),
+    queryFn: () => ticketsApi.list({ unassigned: true, page_size: 100 }).then((res) => res.data),
   });
+  const tickets = data?.items;
 
   return (
     <div>

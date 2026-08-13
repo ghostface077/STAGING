@@ -16,6 +16,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Pagination } from "@/components/ui/pagination";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,6 +24,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { useCategories } from "@/hooks/use-reference-data";
 import { getErrorMessage, knowledgeBaseApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+
+const PAGE_SIZE = 20;
 
 const articleSchema = z.object({
   title: z.string().min(1, "Le titre est obligatoire."),
@@ -37,15 +40,19 @@ export default function KnowledgeBasePage() {
   const { toast } = useToast();
   const { data: categories } = useCategories();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isStaff = user?.role?.name && ["Technicien", "Responsable IT", "Administrateur"].includes(user.role.name);
 
-  const { data: articles, isLoading } = useQuery({
-    queryKey: ["knowledge-base", { search }],
-    queryFn: () => knowledgeBaseApi.list({ search: search || undefined }).then((res) => res.data),
+  const { data, isLoading } = useQuery({
+    queryKey: ["knowledge-base", { search, page }],
+    queryFn: () =>
+      knowledgeBaseApi.list({ search: search || undefined, page, page_size: PAGE_SIZE }).then((res) => res.data),
+    placeholderData: (previous) => previous,
   });
+  const articles = data?.items;
 
   const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<ArticleFormValues>({
     resolver: zodResolver(articleSchema),
@@ -87,7 +94,15 @@ export default function KnowledgeBasePage() {
 
       <div className="relative mb-4 max-w-md">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Rechercher un article…" className="pl-8" />
+        <Input
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setPage(1);
+          }}
+          placeholder="Rechercher un article…"
+          className="pl-8"
+        />
       </div>
 
       {isLoading ? (
@@ -115,6 +130,8 @@ export default function KnowledgeBasePage() {
           ))}
         </div>
       )}
+
+      <Pagination page={page} pageCount={data?.pages ?? 1} onPageChange={setPage} totalItems={data?.total} pageSize={PAGE_SIZE} />
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-xl">

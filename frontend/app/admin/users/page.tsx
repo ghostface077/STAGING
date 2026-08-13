@@ -16,6 +16,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Pagination } from "@/components/ui/pagination";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -23,6 +24,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { useDepartments, useRoles } from "@/hooks/use-reference-data";
 import { getErrorMessage, usersApi } from "@/lib/api";
 import type { User } from "@/lib/types";
+
+const PAGE_SIZE = 20;
 
 const userSchema = z.object({
   first_name: z.string().min(1, "Le prénom est obligatoire."),
@@ -40,15 +43,19 @@ export default function AdminUsersPage() {
   const { data: roles } = useRoles();
   const { data: departments } = useDepartments();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<User | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userToDeactivate, setUserToDeactivate] = useState<User | null>(null);
 
-  const { data: users, isLoading } = useQuery({
-    queryKey: ["users", { search }],
-    queryFn: () => usersApi.list({ search: search || undefined }).then((res) => res.data),
+  const { data, isLoading } = useQuery({
+    queryKey: ["users", { search, page }],
+    queryFn: () =>
+      usersApi.list({ search: search || undefined, page, page_size: PAGE_SIZE }).then((res) => res.data),
+    placeholderData: (previous) => previous,
   });
+  const users = data?.items;
 
   const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
@@ -117,7 +124,15 @@ export default function AdminUsersPage() {
 
       <div className="relative mb-4 max-w-md">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Rechercher par nom ou e-mail…" className="pl-8" />
+        <Input
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setPage(1);
+          }}
+          placeholder="Rechercher par nom ou e-mail…"
+          className="pl-8"
+        />
       </div>
 
       <Card>
@@ -160,6 +175,7 @@ export default function AdminUsersPage() {
             </TableBody>
           </Table>
         )}
+        <Pagination page={page} pageCount={data?.pages ?? 1} onPageChange={setPage} totalItems={data?.total} pageSize={PAGE_SIZE} />
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

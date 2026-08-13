@@ -1,5 +1,6 @@
 """API de la base de connaissances."""
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -7,7 +8,7 @@ from app.deps import get_current_user, require_staff
 from app.models.knowledge_base import KB_STATUS_PUBLIE, KnowledgeBaseArticle
 from app.models.role import ROLE_ADMINISTRATEUR, ROLE_RESPONSABLE_IT, ROLE_TECHNICIEN
 from app.models.user import User
-from app.schemas.common import Message
+from app.schemas.common import Message, Page, PaginationParams
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseOut, KnowledgeBaseUpdate
 
 router = APIRouter(prefix="/api/knowledge-base", tags=["Base de connaissances"])
@@ -21,15 +22,7 @@ def _base_query(db: Session):
     )
 
 
-@router.get("", response_model=list[KnowledgeBaseOut])
-def list_articles(
-    category_id: int | None = None,
-    search: str | None = None,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Liste les articles publiés (le personnel support voit également les brouillons)."""
-    query = _base_query(db)
+def _apply_kb_filters(query, *, current_user: User, category_id: int | None, search: str | None):
     if current_user.role.name not in STAFF_ROLES:
         query = query.filter(KnowledgeBaseArticle.status == KB_STATUS_PUBLIE)
     if category_id:
@@ -39,7 +32,29 @@ def list_articles(
         query = query.filter(
             (KnowledgeBaseArticle.title.ilike(like)) | (KnowledgeBaseArticle.content.ilike(like))
         )
-    return query.order_by(KnowledgeBaseArticle.updated_at.desc()).all()
+    return query
+
+
+@router.get("", response_model=Page[KnowledgeBaseOut])
+def list_articles(
+    category_id: int | None = None,
+    search: str | None = None,
+    pagination: PaginationParams = Depends(),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Liste paginée des articles publiés (le personnel support voit également les brouillons)."""
+    filters = dict(current_user=current_user, category_id=category_id, search=search)
+
+    total = _apply_kb_filters(db.query(func.count(KnowledgeBaseArticle.id)), **filters).scalar()
+    articles = (
+        _apply_kb_filters(_base_query(db), **filters)
+        .order_by(KnowledgeBaseArticle.updated_at.desc())
+        .offset(pagination.offset)
+        .limit(pagination.page_size)
+        .all()
+    )
+    return Page.build(items=articles, total=total, page=pagination.page, page_size=pagination.page_size)
 
 
 @router.get("/{article_id}", response_model=KnowledgeBaseOut)

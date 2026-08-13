@@ -65,18 +65,22 @@ export function useRoles() {
   });
 }
 
+// Utilisées comme listes déroulantes (pas des pages consultées) : on demande le
+// page_size maximum autorisé par l'API (100) plutôt que d'ajouter une interface
+// de pagination ici. Au-delà de 100 techniciens/équipements, cette liste serait
+// tronquée — limite connue et acceptée pour ce correctif (#07).
 export function useTechnicians() {
   return useQuery({
-    queryKey: ["users", { role: "Technicien" }],
-    queryFn: () => usersApi.list({ role: "Technicien" }).then((res) => res.data),
+    queryKey: ["users", { role: "Technicien", page_size: 100 }],
+    queryFn: () => usersApi.list({ role: "Technicien", page_size: 100 }).then((res) => res.data.items),
     staleTime: REFERENCE_STALE_TIME,
   });
 }
 
 export function useEquipmentList() {
   return useQuery({
-    queryKey: ["equipment"],
-    queryFn: () => equipmentApi.list().then((res) => res.data),
+    queryKey: ["equipment", { page_size: 100 }],
+    queryFn: () => equipmentApi.list({ page_size: 100 }).then((res) => res.data.items),
     staleTime: REFERENCE_STALE_TIME,
   });
 }
