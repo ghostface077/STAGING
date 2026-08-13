@@ -7,7 +7,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_current_user, require_manager
 from app.models.role import ROLE_ADMINISTRATEUR, ROLE_RESPONSABLE_IT, ROLE_TECHNICIEN
 from app.models.satisfaction_rating import SatisfactionRating
 from app.models.status import (
@@ -117,8 +117,11 @@ def tickets_by_category(current_user: User = Depends(get_current_user), db: Sess
 
 
 @router.get("/tickets-by-technician", response_model=list[TechnicianStats])
-def tickets_by_technician(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Réservé en pratique aux responsables/administrateurs (les données restent scoped pour les autres rôles)."""
+def tickets_by_technician(current_user: User = Depends(require_manager), db: Session = Depends(get_db)):
+    """Statistiques nominatives de tous les techniciens (charge, résolutions, temps
+    moyen). Réservé aux Responsables IT et Administrateurs (correctif #06) : un
+    Technicien dispose déjà de ses propres chiffres, scopés automatiquement à
+    ses tickets assignés, via les autres endpoints de ce router."""
     technicians = db.query(User).join(User.role).filter(User.role.has(name=ROLE_TECHNICIEN)).all()
     results = []
     for tech in technicians:
