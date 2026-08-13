@@ -87,8 +87,9 @@ Toutes les variables sont centralisées dans le fichier `.env` à la racine (voi
 |---|---|
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Identifiants de la base PostgreSQL |
 | `DATABASE_URL` | Chaîne de connexion complète utilisée par le backend |
-| `SECRET_KEY` | Clé secrète de signature des tokens JWT (**à changer en production**) |
+| `SECRET_KEY` | Clé secrète de signature des tokens JWT. **Obligatoire, sans valeur par défaut** : le backend refuse de démarrer si elle est absente, et refuse de démarrer en production (`ENVIRONMENT=production`) si elle correspond à une valeur de démonstration connue ou fait moins de 32 caractères. Générez-la avec `openssl rand -hex 32`. |
 | `ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES` | Paramètres du token JWT |
+| `SEED_ON_STARTUP` | Exécute automatiquement `python -m app.seed` (comptes de démonstration, dont l'administrateur par défaut) au démarrage du conteneur backend. **Doit être `false` en production** — le backend refuse de toute façon de démarrer en production si cette valeur reste à `true`. |
 | `BACKEND_CORS_ORIGINS` | Origines autorisées par le CORS (le frontend) |
 | `UPLOAD_DIR`, `MAX_UPLOAD_SIZE_MB` | Répertoire et taille maximale des pièces jointes |
 | `NEXT_PUBLIC_API_URL` | URL de l'API telle qu'appelée par le frontend |
@@ -117,6 +118,14 @@ Une fois démarré :
 - Documentation interactive de l'API (Swagger) : http://localhost:8000/api/docs
 
 Pour arrêter : `Ctrl+C` puis `docker compose down` (ajoutez `-v` pour supprimer aussi les volumes, y compris les données PostgreSQL).
+
+> **Accès direct à PostgreSQL en local (psql, DBeaver...)** : le port 5432 n'est plus publié par défaut (voir section Sécurité). Créez un fichier `docker-compose.override.yml` à la racine (chargé automatiquement par `docker compose up`, non versionné) :
+> ```yaml
+> services:
+>   db:
+>     ports:
+>       - "5432:5432"
+> ```
 
 ## Migrations PostgreSQL (Alembic)
 
@@ -148,13 +157,16 @@ docker compose exec backend python -m app.seed
 
 ## Comptes de démonstration
 
+Le seed crée un compte par rôle (un Administrateur, un Responsable IT, trois Techniciens, cinq Utilisateurs — voir `app/seed.py`). Les e-mails sont fixes ; **les mots de passe ne sont pas publiés ici** et doivent être configurés dans votre fichier `.env` local (racine du projet), via les variables `SEED_ADMIN_PASSWORD`, `SEED_MANAGER_PASSWORD`, `SEED_TECHNICIAN_PASSWORD` et `SEED_USER_PASSWORD` (voir `.env.example`). Consultez votre `.env` pour retrouver les identifiants de connexion.
+
 | Rôle | E-mail | Mot de passe |
 |---|---|---|
-| Administrateur | `admin@itsupport.example` | `Admin123!` |
-| Responsable IT | `karim.benali@itsupport.example` | `Responsable123!` |
-| Technicien | `fatou.ndiaye@itsupport.example` | `Technicien123!` |
-| Technicien | `yacine.mansour@itsupport.example` | `Technicien123!` |
-| Utilisateur | `lucas.moreau@itsupport.example` | `Utilisateur123!` |
+| Administrateur | `admin@itsupport.example` | valeur de `SEED_ADMIN_PASSWORD` dans `.env` |
+| Responsable IT | `karim.benali@itsupport.example` | valeur de `SEED_MANAGER_PASSWORD` dans `.env` |
+| Technicien | `fatou.ndiaye@itsupport.example`, `yacine.mansour@itsupport.example`, `chloe.fontaine@itsupport.example` | valeur de `SEED_TECHNICIAN_PASSWORD` dans `.env` |
+| Utilisateur | `lucas.moreau@itsupport.example` (et 4 autres, voir `app/seed.py`) | valeur de `SEED_USER_PASSWORD` dans `.env` |
+
+Si une de ces variables est absente au moment du seed, un mot de passe aléatoire est généré automatiquement pour le(s) compte(s) concerné(s) — il n'est jamais journalisé ; définissez la variable si vous devez connaître ou fixer ce mot de passe.
 
 Connexion standard : http://localhost:3000/login — Back-office administrateur : http://localhost:3000/admin/login
 
@@ -247,7 +259,11 @@ frontend/
 - Upload de fichiers contrôlé (extension, type MIME, taille maximale, nom de fichier généré aléatoirement).
 - Journal d'audit (`audit_logs`) et historique de ticket (`ticket_history`) pour la traçabilité.
 - CORS restreint à l'origine du frontend.
-- Aucun secret dans le code source : tout passe par les variables d'environnement.
+- Aucun secret dans le code source : tout passe par les variables d'environnement (`.env`, jamais committé — voir `.gitignore`).
+- **`SECRET_KEY` obligatoire, sans valeur par défaut** : le backend refuse de démarrer si elle est absente, et refuse de démarrer en production si elle correspond à une valeur de démonstration connue ou fait moins de 32 caractères (`app/config.py`).
+- **Seed de démonstration désactivable** : `SEED_ON_STARTUP=false` empêche la création automatique des comptes de démonstration (dont l'administrateur par défaut) — obligatoire en production, sous peine d'échec de démarrage volontaire.
+- **PostgreSQL non exposé publiquement** : le port 5432 n'est plus publié par `docker-compose.yml` (base accessible uniquement depuis le réseau Docker interne). L'accès local de développement passe par un `docker-compose.override.yml` non versionné (voir section Docker ci-dessus).
+- Si un compte administrateur de démonstration est malgré tout créé (environnement de développement), changez son mot de passe dès la première connexion réelle.
 
 ## Limites connues et pistes d'évolution
 

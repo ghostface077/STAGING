@@ -7,8 +7,11 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "5432:5432"
+    # Le port PostgreSQL n'est plus publié sur l'hôte : la base n'est joignable
+    # que depuis le réseau Docker interne (service `backend`). Pour un accès
+    # local de développement (psql, DBeaver...), voir docker-compose.override.yml.
+    expose:
+      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -29,6 +32,8 @@ services:
       - .env
     environment:
       DATABASE_URL: ${DATABASE_URL}
+      ENVIRONMENT: ${ENVIRONMENT}
+      SEED_ON_STARTUP: ${SEED_ON_STARTUP:-true}
     depends_on:
       db:
         condition: service_healthy
@@ -38,7 +43,12 @@ services:
       - uploads_data:/app/uploads
     command: >
       sh -c "alembic upgrade head &&
-             python -m app.seed &&
+             if [ \"$$ENVIRONMENT\" != \"production\" ] && [ \"$$SEED_ON_STARTUP\" != \"false\" ]; then
+               echo '[seed] environnement non-production : injection des donnees de demonstration' &&
+               python -m app.seed;
+             else
+               echo '[seed] production ou SEED_ON_STARTUP=false : seed ignore';
+             fi &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000"
     networks:
       - itsupport_network

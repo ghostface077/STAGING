@@ -1,6 +1,9 @@
 # Environnement
 .env
 
+# Override Docker Compose local (republie le port PostgreSQL pour le dev — jamais en prod)
+docker-compose.override.yml
+
 # Backend Python
 backend/__pycache__/
 backend/**/__pycache__/

@@ -5,6 +5,7 @@ Toutes les données sont fictives, en français, et ne représentent aucune pers
 Utilisation :
     python -m app.seed
 """
+import secrets
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
@@ -140,20 +141,55 @@ def seed_slas(db: Session, priorities: dict[str, Priority]) -> dict[str, SLA]:
     return slas
 
 
+def _resolve_seed_password(value: str | None) -> tuple[str, bool]:
+    """Retourne (mot_de_passe, généré_aléatoirement) pour un mot de passe de seed.
+
+    Si `value` (lu depuis une variable d'environnement SEED_*_PASSWORD) est
+    fourni, il est utilisé tel quel. Sinon, un mot de passe aléatoire fort est
+    généré à la volée : aucun mot de passe n'est jamais codé en dur dans le
+    code source, pour aucun des quatre rôles. Ce mot de passe généré n'est
+    jamais journalisé (voir seed_users) — définissez la variable correspondante
+    si vous avez besoin de connaître ce mot de passe pour vous connecter.
+    """
+    if value:
+        return value, False
+    return secrets.token_urlsafe(16), True
+
+
 def seed_users(db: Session, roles: dict[str, Role], departments: dict[str, Department]) -> dict[str, User]:
+    # Un mot de passe par palier de rôle (SEED_ADMIN_PASSWORD, SEED_MANAGER_PASSWORD,
+    # SEED_TECHNICIAN_PASSWORD, SEED_USER_PASSWORD), partagé par tous les comptes de
+    # démonstration de ce rôle — comme c'était déjà le cas pour Technicien/Utilisateur.
+    admin_password, admin_generated = _resolve_seed_password(settings.seed_admin_password)
+    manager_password, manager_generated = _resolve_seed_password(settings.seed_manager_password)
+    technician_password, technician_generated = _resolve_seed_password(settings.seed_technician_password)
+    user_password, user_generated = _resolve_seed_password(settings.seed_user_password)
+    generated_by_role = {
+        "Administrateur": admin_generated,
+        "Responsable IT": manager_generated,
+        "Technicien": technician_generated,
+        "Utilisateur": user_generated,
+    }
+
     users_data = [
         # (prénom, nom, email, mot de passe, rôle, service)
-        ("Amina", "Diallo", settings.seed_admin_email, settings.seed_admin_password, "Administrateur", "Service Informatique"),
-        ("Karim", "Benali", "karim.benali@itsupport.example", "Responsable123!", "Responsable IT", "Service Informatique"),
-        ("Fatou", "Ndiaye", "fatou.ndiaye@itsupport.example", "Technicien123!", "Technicien", "Service Informatique"),
-        ("Yacine", "Mansour", "yacine.mansour@itsupport.example", "Technicien123!", "Technicien", "Service Informatique"),
-        ("Chloé", "Fontaine", "chloe.fontaine@itsupport.example", "Technicien123!", "Technicien", "Service Informatique"),
-        ("Lucas", "Moreau", "lucas.moreau@itsupport.example", "Utilisateur123!", "Utilisateur", "Comptabilité"),
-        ("Sophie", "Lefèvre", "sophie.lefevre@itsupport.example", "Utilisateur123!", "Utilisateur", "Ressources Humaines"),
-        ("Mehdi", "Cherif", "mehdi.cherif@itsupport.example", "Utilisateur123!", "Utilisateur", "Commercial"),
-        ("Julie", "Bernard", "julie.bernard@itsupport.example", "Utilisateur123!", "Utilisateur", "Logistique"),
-        ("Thomas", "Girard", "thomas.girard@itsupport.example", "Utilisateur123!", "Utilisateur", "Direction Générale"),
+        ("Amina", "Diallo", settings.seed_admin_email, admin_password, "Administrateur", "Service Informatique"),
+        ("Karim", "Benali", "karim.benali@itsupport.example", manager_password, "Responsable IT", "Service Informatique"),
+        ("Fatou", "Ndiaye", "fatou.ndiaye@itsupport.example", technician_password, "Technicien", "Service Informatique"),
+        ("Yacine", "Mansour", "yacine.mansour@itsupport.example", technician_password, "Technicien", "Service Informatique"),
+        ("Chloé", "Fontaine", "chloe.fontaine@itsupport.example", technician_password, "Technicien", "Service Informatique"),
+        ("Lucas", "Moreau", "lucas.moreau@itsupport.example", user_password, "Utilisateur", "Comptabilité"),
+        ("Sophie", "Lefèvre", "sophie.lefevre@itsupport.example", user_password, "Utilisateur", "Ressources Humaines"),
+        ("Mehdi", "Cherif", "mehdi.cherif@itsupport.example", user_password, "Utilisateur", "Commercial"),
+        ("Julie", "Bernard", "julie.bernard@itsupport.example", user_password, "Utilisateur", "Logistique"),
+        ("Thomas", "Girard", "thomas.girard@itsupport.example", user_password, "Utilisateur", "Direction Générale"),
     ]
+
+    # (rôle, email) des comptes créés avec un mot de passe généré aléatoirement.
+    # Le mot de passe lui-même n'est JAMAIS retenu ici ni journalisé nulle part :
+    # seule la variable d'environnement correspondante permet de le connaître.
+    generated_accounts: list[tuple[str, str]] = []
+
     users = {}
     for first_name, last_name, email, password, role_name, dept_name in users_data:
         user, created = get_or_create(
@@ -169,6 +205,18 @@ def seed_users(db: Session, roles: dict[str, Role], departments: dict[str, Depar
             },
         )
         users[email] = user
+
+        if created and generated_by_role[role_name]:
+            generated_accounts.append((role_name, email))
+
+    if generated_accounts:
+        # Log volontairement dépourvu de tout mot de passe : seul le fait qu'un
+        # mot de passe ait été généré est journalisé, jamais sa valeur.
+        print("[seed] Mot de passe genere aleatoirement (SEED_*_PASSWORD absent) pour :")
+        for role_name, email in generated_accounts:
+            print(f"[seed]   - {role_name}: {email}")
+        print("[seed] Definissez la variable SEED_*_PASSWORD correspondante pour connaitre/fixer ce mot de passe.")
+
     return users
 
 
