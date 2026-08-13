@@ -1,0 +1,175 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Identité visuelle IT Support : indigo/violet technologique en primaire,
+  ambre en accent de marque (utilisé avec parcimonie), neutres slate froids.
+  Choisi pour se démarquer du bleu générique des solutions de ticketing du marché
+  (Jira, Zendesk, Freshdesk) tout en restant sobre et professionnel.
+*/
+@layer base {
+  :root {
+    --background: 240 20% 99%;
+    --foreground: 240 25% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 25% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 25% 11%;
+
+    --primary: 245 75% 57%;
+    --primary-foreground: 240 40% 99%;
+
+    --secondary: 240 25% 95%;
+    --secondary-foreground: 240 25% 20%;
+
+    --muted: 240 20% 96%;
+    --muted-foreground: 240 10% 46%;
+
+    --accent: 240 25% 93%;
+    --accent-foreground: 240 25% 20%;
+
+    /* Accent de marque (ambre) : réservé aux mises en avant ponctuelles (jamais le primaire) */
+    --brand: 38 92% 50%;
+    --brand-foreground: 26 40% 14%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 240 40% 99%;
+
+    --success: 152 60% 34%;
+    --success-foreground: 240 40% 99%;
+
+    --warning: 38 92% 47%;
+    --warning-foreground: 26 40% 14%;
+
+    --info: 199 89% 42%;
+    --info-foreground: 240 40% 99%;
+
+    --border: 240 20% 89%;
+    --input: 240 20% 89%;
+    --ring: 245 75% 57%;
+
+    --radius: 0.625rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --background: 240 28% 7%;
+      --foreground: 240 30% 96%;
+
+      --card: 240 24% 10%;
+      --card-foreground: 240 30% 96%;
+
+      --popover: 240 24% 10%;
+      --popover-foreground: 240 30% 96%;
+
+      --primary: 245 85% 68%;
+      --primary-foreground: 240 30% 8%;
+
+      --secondary: 240 20% 16%;
+      --secondary-foreground: 240 30% 96%;
+
+      --muted: 240 20% 15%;
+      --muted-foreground: 240 12% 65%;
+
+      --accent: 240 20% 18%;
+      --accent-foreground: 240 30% 96%;
+
+      --brand: 38 88% 56%;
+      --brand-foreground: 26 40% 12%;
+
+      --destructive: 0 63% 52%;
+      --destructive-foreground: 240 30% 96%;
+
+      --success: 152 55% 45%;
+      --success-foreground: 240 30% 8%;
+
+      --warning: 38 88% 56%;
+      --warning-foreground: 26 40% 12%;
+
+      --info: 199 85% 58%;
+      --info-foreground: 240 30% 8%;
+
+      --border: 240 18% 20%;
+      --input: 240 18% 20%;
+      --ring: 245 85% 68%;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --background: 240 28% 7%;
+    --foreground: 240 30% 96%;
+
+    --card: 240 24% 10%;
+    --card-foreground: 240 30% 96%;
+
+    --popover: 240 24% 10%;
+    --popover-foreground: 240 30% 96%;
+
+    --primary: 245 85% 68%;
+    --primary-foreground: 240 30% 8%;
+
+    --secondary: 240 20% 16%;
+    --secondary-foreground: 240 30% 96%;
+
+    --muted: 240 20% 15%;
+    --muted-foreground: 240 12% 65%;
+
+    --accent: 240 20% 18%;
+    --accent-foreground: 240 30% 96%;
+
+    --brand: 38 88% 56%;
+    --brand-foreground: 26 40% 12%;
+
+    --destructive: 0 63% 52%;
+    --destructive-foreground: 240 30% 96%;
+
+    --success: 152 55% 45%;
+    --success-foreground: 240 30% 8%;
+
+    --warning: 38 88% 56%;
+    --warning-foreground: 26 40% 12%;
+
+    --info: 199 85% 58%;
+    --info-foreground: 240 30% 8%;
+
+    --border: 240 18% 20%;
+    --input: 240 18% 20%;
+    --ring: 245 85% 68%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3 {
+    @apply tracking-tight;
+  }
+}
+
+@layer utilities {
+  /* Barre de défilement discrète et cohérente avec le thème */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  /* Grille technique discrète utilisée en fond de certains en-têtes (dashboard, login) */
+  .bg-grid-pattern {
+    background-image: linear-gradient(hsl(var(--foreground) / 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--foreground) / 0.04) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -NoProfile -Command \"Get-ChildItem 'c:\\\\Users\\\\HP\\\\it-support\\\\frontend\\\\app\\\\fonts' -ErrorAction SilentlyContinue | Select-Object Name\")",
+      "Read(//c/HP/**)",
+      "PowerShell(Invoke-WebRequest -Uri \"http://localhost:3000\" -UseBasicParsing -TimeoutSec 5 -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Id 20492 -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Process -Name winget -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(winget install --id PostgreSQL.PostgreSQL.16 -e --accept-package-agreements --accept-source-agreements --silent --override \"--mode unattended --unattendedmodeui minimal --superpassword itsupport_dev_password --enable-components server,commandlinetools\" 2>&1)",
+      "Read(//c/Users/HP/AppData/Local/Programs/Python/**)",
+      "PowerShell(Get-Process python -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Process node -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Process node,python,uvicorn -ErrorAction SilentlyContinue)",
+      "PowerShell(Start-Sleep -Seconds 2; try { Invoke-RestMethod -Uri \"http://localhost:8000/api/health\" -TimeoutSec 5 } catch { \"BACKEND DOWN: $_\" })",
+      "PowerShell(Get-Process | Where-Object { $_.ProcessName -match 'python' } | Select-Object Id,ProcessName,CPU,Path | Format-Table -AutoSize)",
+      "PowerShell(try { Invoke-RestMethod -Uri \"http://127.0.0.1:8000/api/health\" -TimeoutSec 5 } catch { \"STILL DOWN: $_\" })",
+      "Bash(./.venv/Scripts/python.exe -m pytest -v)",
+      "PowerShell(Stop-Process -Force)",
+      "PowerShell(\"STOPPED\")",
+      "Bash(cd /c/Users/HP/it-support/frontend && rm -rf .next && echo \"cache cleared\")"
+    ],
+    "additionalDirectories": [
+      "c:\\HP\\it-support\\frontend\\components\\tickets"
+    ]
+  }
+}

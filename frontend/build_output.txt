@@ -1,0 +1,64 @@
+﻿
+> frontend@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.35
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/37) ...
+   Generating static pages (9/37) 
+   Generating static pages (18/37) 
+   Generating static pages (27/37) 
+ ✓ Generating static pages (37/37)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+┌ ○ /                                    3.27 kB         110 kB
+├ ○ /_not-found                          880 B          88.4 kB
+├ ○ /admin/audit-logs                    2.4 kB          130 kB
+├ ○ /admin/categories                    6.66 kB         195 kB
+├ ○ /admin/dashboard                     7.29 kB         250 kB
+├ ○ /admin/departments                   6.09 kB         173 kB
+├ ○ /admin/equipment                     221 B           207 kB
+├ ○ /admin/knowledge-base                217 B           204 kB
+├ ○ /admin/login                         1.63 kB         159 kB
+├ ○ /admin/notifications                 1.99 kB         149 kB
+├ ○ /admin/priorities                    6.4 kB          174 kB
+├ ○ /admin/reports                       190 B           132 kB
+├ ○ /admin/roles                         6.14 kB         174 kB
+├ ○ /admin/settings                      5.76 kB         130 kB
+├ ○ /admin/slas                          7.15 kB         195 kB
+├ ○ /admin/statuses                      6.26 kB         174 kB
+├ ○ /admin/teams                         209 B           177 kB
+├ ○ /admin/tickets                       215 B           177 kB
+├ ○ /admin/users                         7.75 kB         196 kB
+├ ○ /dashboard                           4.41 kB         256 kB
+├ ○ /equipment                           221 B           207 kB
+├ ○ /inscription                         7.04 kB         158 kB
+├ ○ /knowledge-base                      217 B           204 kB
+├ ƒ /knowledge-base/[id]                 9.76 kB         156 kB
+├ ○ /login                               1.6 kB          159 kB
+├ ○ /mes-tickets                         6.6 kB          143 kB
+├ ○ /notifications                       1.99 kB         149 kB
+├ ○ /profil                              10.5 kB         153 kB
+├ ○ /reports                             190 B           132 kB
+├ ○ /slas                                6.64 kB         143 kB
+├ ○ /teams                               208 B           177 kB
+├ ○ /technicians                         5.14 kB         133 kB
+├ ○ /tickets                             215 B           177 kB
+├ ƒ /tickets/[id]                        11.9 kB         194 kB
+├ ○ /tickets/non-assignes                5.98 kB         142 kB
+└ ○ /tickets/nouveau                     6.52 kB         194 kB
++ First Load JS shared by all            87.5 kB
+  ├ chunks/2117-d26b90fdd00847e2.js      31.9 kB
+  ├ chunks/fd9d1056-ece712ca33b80c77.js  53.6 kB
+  └ other shared chunks (total)          1.97 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000 --max-time 3)",
+      "Bash(netstat -ano)",
+      "Bash(tasklist //FI \"PID eq 9460\")",
+      "Bash(curl -s -o /dev/null -w \"http_code=%{http_code}\\\\n\" http://localhost:3000 --max-time 5)",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:3000\" -UseBasicParsing -TimeoutSec 5; \"HTTP $\\($r.StatusCode\\)\" } catch { \"ERROR: $\\($_.Exception.Message\\)\" })",
+      "Bash(npm run *)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(.venv/Scripts/python.exe -m pytest -q)",
+      "Bash(grep -v \"//\")",
+      "Bash(xargs wc -l)",
+      "Bash(echo \"---EXIT:$?---\")"
+    ]
+  }
+}
