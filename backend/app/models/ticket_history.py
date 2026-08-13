@@ -12,7 +12,7 @@ class TicketHistory(Base):
     __tablename__ = "ticket_history"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     action: Mapped[str] = mapped_column(String(100), nullable=False)  # ex: "changement_statut", "attribution"
     old_value: Mapped[str | None] = mapped_column(String(255), nullable=True)
