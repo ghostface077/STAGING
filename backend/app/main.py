@@ -6,6 +6,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 from app.config import settings
 from app.rate_limit import limiter
@@ -31,6 +33,22 @@ from app.routers import (
     users,
 )
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Ajoute des en-têtes de sécurité standard à chaque réponse HTTP.
+
+    `X-Content-Type-Options: nosniff` indique explicitement au navigateur de
+    ne jamais tenter de deviner un type de contenu différent de celui déclaré
+    dans `Content-Type` — en particulier utile pour le téléchargement des
+    pièces jointes (correctif #05), en complément de `Content-Disposition:
+    attachment` déjà systématiquement appliqué à cette réponse.
+    """
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
+
+
 app = FastAPI(
     title="IT Support — API de gestion de tickets",
     description="API REST pour la plateforme de gestion des incidents et demandes informatiques.",
@@ -39,6 +57,8 @@ app = FastAPI(
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
 )
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
