@@ -8,13 +8,32 @@ from app.models.satisfaction_rating import SatisfactionRating
 from app.models.status import STATUS_FERME, STATUS_RESOLU
 from app.models.ticket import Ticket
 from app.models.user import User
+# Réutilisation de la règle de visibilité déjà appliquée sur GET /api/tickets/{id}
+# (Utilisateur -> ses tickets, Technicien -> ses tickets assignés/non-assignés,
+# Responsable IT/Administrateur -> tout) : on évite de dupliquer cette logique
+# d'autorisation, source de l'IDOR corrigé ici (correctif #03 de l'audit).
+from app.routers.tickets import _can_view_ticket
 from app.schemas.satisfaction import SatisfactionCreate, SatisfactionOut
 
 router = APIRouter(prefix="/api/tickets/{ticket_id}/satisfaction", tags=["Satisfaction"])
 
 
+def _get_ticket_or_404(db: Session, ticket_id: int) -> Ticket:
+    ticket = db.get(Ticket, ticket_id)
+    if ticket is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket introuvable.")
+    return ticket
+
+
 @router.get("", response_model=SatisfactionOut | None)
 def get_satisfaction(ticket_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Consulte l'évaluation de satisfaction d'un ticket. Réservé aux personnes
+    autorisées à consulter le ticket lui-même (voir _can_view_ticket) : le
+    demandeur, le technicien assigné (ou tout technicien si non assigné), et
+    le staff d'encadrement (Responsable IT / Administrateur)."""
+    ticket = _get_ticket_or_404(db, ticket_id)
+    if not _can_view_ticket(ticket, current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vous n'avez pas accès à ce ticket.")
     return db.query(SatisfactionRating).filter(SatisfactionRating.ticket_id == ticket_id).first()
 
 
@@ -23,9 +42,7 @@ def create_satisfaction(
     ticket_id: int, payload: SatisfactionCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """Le demandeur évalue le support une fois son ticket résolu ou fermé."""
-    ticket = db.get(Ticket, ticket_id)
-    if ticket is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket introuvable.")
+    ticket = _get_ticket_or_404(db, ticket_id)
     if ticket.requester_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Seul le demandeur peut évaluer ce ticket.")
     if ticket.status.name not in {STATUS_RESOLU, STATUS_FERME}:

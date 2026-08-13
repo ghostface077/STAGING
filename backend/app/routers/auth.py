@@ -6,6 +6,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.models.role import ROLE_UTILISATEUR, Role
 from app.models.user import User
+from app.rate_limit import limiter
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 from app.schemas.common import Message
 from app.schemas.user import UserOut
@@ -14,8 +15,15 @@ from app.services.history_service import log_audit
 
 router = APIRouter(prefix="/api/auth", tags=["Authentification"])
 
+# 5 tentatives par minute et par IP : assez restrictif pour freiner un
+# bourrage d'identifiants (brute-force / credential stuffing), assez généreux
+# pour ne pas bloquer un utilisateur légitime qui se trompe occasionnellement
+# de mot de passe (2-3 essais restent toujours possibles sans délai).
+LOGIN_RATE_LIMIT = "5/minute"
+
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit(LOGIN_RATE_LIMIT)
 def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
     """Authentifie un utilisateur par e-mail / mot de passe et retourne un token JWT."""
     user = db.query(User).filter(User.email == payload.email.lower()).first()

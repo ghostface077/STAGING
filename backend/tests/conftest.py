@@ -6,6 +6,18 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
+from app.rate_limit import limiter
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Réinitialise le compteur du rate limiter avant/après chaque test : son
+    stockage (en mémoire) persiste sinon d'un test à l'autre dans le même
+    processus pytest, ce qui pourrait faire échouer des tests de connexion
+    sans rapport avec le test de rate limiting lui-même."""
+    limiter.reset()
+    yield
+    limiter.reset()
 from app.models.category import Category
 from app.models.priority import Priority
 from app.models.role import (
@@ -75,7 +87,23 @@ def create_user(db_session, email: str, role_name: str, password: str = "MotDePa
 
 
 def auth_headers(client, email: str, password: str = "MotDePasse123!") -> dict:
-    response = client.post("/api/auth/login", json={"email": email, "password": password})
-    assert response.status_code == 200, response.text
-    token = response.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    """Retourne les en-têtes d'authentification pour `email`, en réutilisant le
+    token déjà obtenu sur ce `client` si un appel précédent l'a déjà connecté.
+
+    Le cache est indispensable depuis l'introduction du rate limiting sur
+    /api/auth/login (correctif #04) : plusieurs tests simulent des scénarios
+    impliquant 4-5 utilisateurs différents et appelaient jusque-là `login` à
+    chaque `auth_headers(...)`, ce qui pouvait dépasser le quota (5/minute)
+    en un seul test — alors qu'une session réelle ne s'authentifie qu'une
+    seule fois. Ce cache reproduit ce comportement réaliste sans affaiblir
+    la protection (les tests dédiés au rate limiting, eux, appellent
+    directement `/api/auth/login`, sans passer par ce cache)."""
+    cache: dict[tuple[str, str], str] = getattr(client, "_auth_token_cache", None) or {}
+    client._auth_token_cache = cache
+
+    key = (email, password)
+    if key not in cache:
+        response = client.post("/api/auth/login", json={"email": email, "password": password})
+        assert response.status_code == 200, response.text
+        cache[key] = response.json()["access_token"]
+    return {"Authorization": f"Bearer {cache[key]}"}

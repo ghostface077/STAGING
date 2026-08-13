@@ -5,8 +5,10 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
+from app.rate_limit import limiter
 from app.routers import (
     attachments,
     audit_logs,
@@ -46,6 +48,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Rate limiting (protection anti brute-force, correctif #04) : le limiteur est
+# rattaché à l'état de l'application, et les dépassements de quota déclenchent
+# le handler ci-dessous plutôt que la réponse par défaut de slowapi.
+app.state.limiter = limiter
+
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -57,6 +64,17 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "details": exc.errors(),
         },
     )
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    """Réponse générique en cas de dépassement du quota de requêtes : ne révèle
+    ni le seuil configuré, ni la moindre information sur le compte visé."""
+    response = JSONResponse(
+        status_code=429,
+        content={"message": "Trop de tentatives. Merci de réessayer dans quelques instants."},
+    )
+    return limiter._inject_headers(response, request.state.view_rate_limit)
 
 
 @app.get("/api/health", tags=["Santé"])
