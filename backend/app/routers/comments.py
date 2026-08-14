@@ -15,17 +15,11 @@ from app.schemas.comment import CommentCreate, CommentOut, CommentUpdate
 from app.schemas.common import Message
 from app.services.history_service import log_ticket_action
 from app.services.notification_service import notify_ticket_participants
+from app.services.ticket_access import get_active_ticket_or_404 as _get_ticket_or_404
 
 router = APIRouter(tags=["Commentaires"])
 
 STAFF_ROLES = {ROLE_TECHNICIEN, ROLE_RESPONSABLE_IT, ROLE_ADMINISTRATEUR}
-
-
-def _get_ticket_or_404(db: Session, ticket_id: int) -> Ticket:
-    ticket = db.get(Ticket, ticket_id)
-    if ticket is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket introuvable.")
-    return ticket
 
 
 def _can_access_ticket(ticket: Ticket, user: User) -> bool:

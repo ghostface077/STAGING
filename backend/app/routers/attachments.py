@@ -12,18 +12,12 @@ from app.models.user import User
 from app.schemas.comment import AttachmentOut
 from app.schemas.common import Message
 from app.services.history_service import log_ticket_action
+from app.services.ticket_access import get_active_ticket_or_404 as _get_ticket_or_404
 from app.utils.files import save_upload
 
 router = APIRouter(tags=["Pièces jointes"])
 
 STAFF_ROLES = {ROLE_TECHNICIEN, ROLE_RESPONSABLE_IT, ROLE_ADMINISTRATEUR}
-
-
-def _get_ticket_or_404(db: Session, ticket_id: int) -> Ticket:
-    ticket = db.get(Ticket, ticket_id)
-    if ticket is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket introuvable.")
-    return ticket
 
 
 def _can_access_ticket(ticket: Ticket, user: User) -> bool:
@@ -66,8 +60,8 @@ def download_attachment(attachment_id: int, current_user: User = Depends(get_cur
     if attachment is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pièce jointe introuvable.")
 
-    ticket = db.get(Ticket, attachment.ticket_id)
-    if ticket is None or not _can_access_ticket(ticket, current_user):
+    ticket = _get_ticket_or_404(db, attachment.ticket_id)
+    if not _can_access_ticket(ticket, current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vous n'avez pas accès à cette pièce jointe.")
 
     return FileResponse(path=attachment.file_path, filename=attachment.file_name, media_type=attachment.file_type)

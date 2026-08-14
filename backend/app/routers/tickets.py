@@ -9,7 +9,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.deps import require_staff, require_user_role, get_current_user
+from app.deps import require_admin, require_staff, require_user_role, get_current_user
 from app.models.role import ROLE_ADMINISTRATEUR, ROLE_RESPONSABLE_IT, ROLE_TECHNICIEN, ROLE_UTILISATEUR
 from app.models.status import (
     STATUS_FERME,
@@ -33,7 +33,7 @@ from app.schemas.ticket import (
     TicketStatusRequest,
     TicketUpdate,
 )
-from app.services.history_service import log_ticket_action
+from app.services.history_service import log_audit, log_ticket_action
 from app.services.notification_service import notify_ticket_participants, notify_user
 from app.services.reference_service import generate_ticket_reference
 from app.services.sla_service import compute_sla_progress
@@ -51,6 +51,7 @@ def _ticket_query(db: Session):
         joinedload(Ticket.priority),
         joinedload(Ticket.status),
         joinedload(Ticket.sla),
+        joinedload(Ticket.deleted_by),
     )
 
 
@@ -86,6 +87,19 @@ def _can_view_ticket(ticket: Ticket, user: User) -> bool:
 
 
 def _get_ticket_or_404(db: Session, ticket_id: int) -> Ticket:
+    """Ticket actif uniquement (correctif #09) — un ticket supprimé logiquement
+    n'est plus accessible via aucune de ces routes (consultation, modification,
+    attribution, changement de statut, etc.)."""
+    ticket = _ticket_query(db).filter(Ticket.id == ticket_id, Ticket.deleted_at.is_(None)).first()
+    if ticket is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket introuvable.")
+    return ticket
+
+
+def _get_ticket_any_state_or_404(db: Session, ticket_id: int) -> Ticket:
+    """Récupère un ticket qu'il soit actif ou supprimé — réservé aux deux seules
+    routes qui doivent pouvoir agir sur un ticket déjà supprimé : la suppression
+    elle-même (pour détecter un doublon) et la restauration."""
     ticket = _ticket_query(db).filter(Ticket.id == ticket_id).first()
     if ticket is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket introuvable.")
@@ -109,11 +123,18 @@ def _apply_ticket_filters(
     requester_id: int | None,
     unassigned: bool | None,
     search: str | None,
+    include_deleted: bool = False,
 ):
     """Applique les règles de portée par rôle et les filtres de recherche à une
     requête de tickets. Extrait de `list_tickets` pour être appliqué à la fois
     à la requête de comptage (COUNT) et à la requête de page (correctif #07),
-    sans dupliquer la logique entre les deux."""
+    sans dupliquer la logique entre les deux.
+
+    include_deleted=True (correctif #09, réservé Administrateur) retourne
+    exclusivement les tickets supprimés (la « corbeille »), jamais un mélange
+    actifs/supprimés."""
+    query = query.filter(Ticket.deleted_at.is_not(None) if include_deleted else Ticket.deleted_at.is_(None))
+
     role = current_user.role.name
 
     if role == ROLE_UTILISATEUR:
@@ -156,15 +177,23 @@ def list_tickets(
     requester_id: int | None = None,
     unassigned: bool | None = None,
     search: str | None = None,
+    include_deleted: bool = False,
     pagination: PaginationParams = Depends(),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Liste paginée des tickets visibles par l'utilisateur connecté, avec filtres de recherche avancée."""
+    """Liste paginée des tickets visibles par l'utilisateur connecté, avec filtres
+    de recherche avancée. include_deleted=true (réservé Administrateur, correctif
+    #09) affiche exclusivement les tickets supprimés (la « corbeille »)."""
+    if include_deleted and current_user.role.name != ROLE_ADMINISTRATEUR:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Seul un administrateur peut consulter les tickets supprimés."
+        )
+
     filters = dict(
         current_user=current_user, status_id=status_id, priority_id=priority_id, category_id=category_id,
         technician_id=technician_id, team_id=team_id, requester_id=requester_id,
-        unassigned=unassigned, search=search,
+        unassigned=unassigned, search=search, include_deleted=include_deleted,
     )
 
     total = _apply_ticket_filters(db.query(func.count(Ticket.id)), **filters).scalar()
@@ -252,13 +281,52 @@ def delete_ticket(
     current_user: User = Depends(require_staff),
     db: Session = Depends(get_db),
 ):
-    """Supprime un ticket. Réservé aux Responsables IT et Administrateurs."""
+    """Supprime logiquement un ticket (correctif #09) : rien n'est physiquement
+    effacé (commentaires, pièces jointes, historique, évaluation de satisfaction
+    conservés intégralement) — le ticket devient simplement invisible dans les
+    vues métier normales, et un administrateur peut le restaurer.
+    Réservé aux Responsables IT et Administrateurs."""
     if current_user.role.name == ROLE_TECHNICIEN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Seuls les responsables IT et administrateurs peuvent supprimer un ticket.")
-    ticket = _get_ticket_or_404(db, ticket_id)
-    db.delete(ticket)
+    ticket = _get_ticket_any_state_or_404(db, ticket_id)
+    if ticket.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Ce ticket a déjà été supprimé.")
+
+    ticket.deleted_at = datetime.now(timezone.utc)
+    ticket.deleted_by_id = current_user.id
+
+    log_ticket_action(db, ticket=ticket, user_id=current_user.id, action="suppression", old_value=ticket.reference)
+    log_audit(db, user_id=current_user.id, action="suppression_ticket", entity_type="ticket", entity_id=ticket.id)
     db.commit()
     return Message(message="Ticket supprimé avec succès.")
+
+
+@router.post("/{ticket_id}/restore", response_model=TicketOut)
+def restore_ticket(
+    ticket_id: int,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Restaure un ticket précédemment supprimé (correctif #09). Réservé à
+    l'administrateur : une restauration réintroduit dans les vues métier des
+    données volontairement retirées — opération plus sensible que la
+    suppression elle-même (réservée à Responsable IT + Administrateur)."""
+    ticket = _get_ticket_any_state_or_404(db, ticket_id)
+    if ticket.deleted_at is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Ce ticket n'est pas supprimé.")
+
+    previous_deleted_by = ticket.deleted_by_id
+    ticket.deleted_at = None
+    ticket.deleted_by_id = None
+
+    log_ticket_action(
+        db, ticket=ticket, user_id=current_user.id, action="restauration",
+        old_value=str(previous_deleted_by) if previous_deleted_by else None,
+    )
+    log_audit(db, user_id=current_user.id, action="restauration_ticket", entity_type="ticket", entity_id=ticket.id)
+    db.commit()
+    db.refresh(ticket)
+    return _to_out(ticket)
 
 
 @router.get("/{ticket_id}/history", response_model=list[TicketHistoryOut])

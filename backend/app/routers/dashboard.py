@@ -31,7 +31,7 @@ def _scoped_query(db: Session, current_user: User):
     """Restreint la portée des tickets selon le rôle : Utilisateur → ses tickets, Technicien → ses tickets assignés."""
     query = db.query(Ticket).options(
         joinedload(Ticket.status), joinedload(Ticket.priority), joinedload(Ticket.category), joinedload(Ticket.sla)
-    )
+    ).filter(Ticket.deleted_at.is_(None))  # correctif #09 : exclure les tickets supprimés des statistiques
     role = current_user.role.name
     if role not in (ROLE_RESPONSABLE_IT, ROLE_ADMINISTRATEUR):
         if role == ROLE_TECHNICIEN:
@@ -125,7 +125,7 @@ def tickets_by_technician(current_user: User = Depends(require_manager), db: Ses
     technicians = db.query(User).join(User.role).filter(User.role.has(name=ROLE_TECHNICIEN)).all()
     results = []
     for tech in technicians:
-        assigned = db.query(Ticket).filter(Ticket.technician_id == tech.id).all()
+        assigned = db.query(Ticket).filter(Ticket.technician_id == tech.id, Ticket.deleted_at.is_(None)).all()
         resolved = [t for t in assigned if t.resolved_at is not None]
         avg_hours = (
             sum((t.resolved_at - t.created_at).total_seconds() for t in resolved) / len(resolved) / 3600

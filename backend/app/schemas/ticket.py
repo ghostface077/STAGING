@@ -68,6 +68,8 @@ class TicketListItem(BaseModel):
     priority: PriorityOut
     status: StatusOut
     sla_progress: SLAProgress | None = None
+    deleted_at: datetime | None = None
+    deleted_by: UserSummary | None = None
 
 
 class TicketOut(TicketListItem):

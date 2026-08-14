@@ -6,7 +6,6 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.models.satisfaction_rating import SatisfactionRating
 from app.models.status import STATUS_FERME, STATUS_RESOLU
-from app.models.ticket import Ticket
 from app.models.user import User
 # Réutilisation de la règle de visibilité déjà appliquée sur GET /api/tickets/{id}
 # (Utilisateur -> ses tickets, Technicien -> ses tickets assignés/non-assignés,
@@ -14,15 +13,9 @@ from app.models.user import User
 # d'autorisation, source de l'IDOR corrigé ici (correctif #03 de l'audit).
 from app.routers.tickets import _can_view_ticket
 from app.schemas.satisfaction import SatisfactionCreate, SatisfactionOut
+from app.services.ticket_access import get_active_ticket_or_404 as _get_ticket_or_404
 
 router = APIRouter(prefix="/api/tickets/{ticket_id}/satisfaction", tags=["Satisfaction"])
-
-
-def _get_ticket_or_404(db: Session, ticket_id: int) -> Ticket:
-    ticket = db.get(Ticket, ticket_id)
-    if ticket is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket introuvable.")
-    return ticket
 
 
 @router.get("", response_model=SatisfactionOut | None)

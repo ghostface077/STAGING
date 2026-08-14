@@ -37,8 +37,15 @@ class Ticket(Base):
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Suppression logique (correctif #09) : deleted_at NULL = ticket actif. Rien
+    # n'est jamais physiquement effacé ; un administrateur peut restaurer en
+    # remettant ces deux colonnes à NULL (voir POST /api/tickets/{id}/restore).
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    deleted_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
     requester: Mapped["User"] = relationship("User", foreign_keys=[requester_id], back_populates="tickets_created")
     technician: Mapped["User | None"] = relationship("User", foreign_keys=[technician_id], back_populates="tickets_assigned")
+    deleted_by: Mapped["User | None"] = relationship("User", foreign_keys=[deleted_by_id])
     team: Mapped["Team | None"] = relationship("Team", back_populates="tickets")
     category: Mapped["Category"] = relationship("Category", back_populates="tickets")
     priority: Mapped["Priority"] = relationship("Priority", back_populates="tickets")

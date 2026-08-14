@@ -26,7 +26,7 @@ def _period_query(db: Session, date_from: date | None, date_to: date | None):
     query = db.query(Ticket).options(
         joinedload(Ticket.requester), joinedload(Ticket.technician), joinedload(Ticket.category),
         joinedload(Ticket.priority), joinedload(Ticket.status),
-    )
+    ).filter(Ticket.deleted_at.is_(None))  # correctif #09 : exclure les tickets supprimés des rapports
     if date_from:
         query = query.filter(Ticket.created_at >= datetime.combine(date_from, time.min, tzinfo=timezone.utc))
     if date_to:
