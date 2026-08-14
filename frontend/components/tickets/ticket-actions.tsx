@@ -25,6 +25,22 @@ const CLOSED = new Set(["Résolu", "Fermé"]);
 const isManager = (role: string) => role === "Responsable IT" || role === "Administrateur";
 const isStaff = (role: string) => role === "Technicien" || isManager(role);
 
+/**
+ * Miroir de app/services/ticket_state_machine.py (correctif #13) : Résolu et
+ * Fermé ne figurent jamais comme cible ici, ils restent exclusivement
+ * accessibles via les actions dédiées « Résoudre »/« Fermer »/« Réouvrir »,
+ * seules à synchroniser correctement resolved_at/closed_at. Ce filtrage
+ * n'est qu'un confort d'affichage — la validation réelle reste côté serveur.
+ */
+const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
+  "Nouveau": ["Ouvert", "En cours", "En attente", "Annulé"],
+  "Ouvert": ["En cours", "En attente", "Annulé"],
+  "En cours": ["En attente", "Ouvert", "Annulé"],
+  "En attente": ["En cours", "Ouvert", "Annulé"],
+  "Réouvert": ["En cours", "En attente", "Ouvert", "Annulé"],
+  "Annulé": [],
+};
+
 export function TicketActions({ ticket, currentUserId, role }: TicketActionsProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -105,7 +121,10 @@ export function TicketActions({ ticket, currentUserId, role }: TicketActionsProp
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => setDialog("status")}>Changer le statut</DropdownMenuItem>
+            {/* Résolu/Fermé : aucune transition disponible via ce menu, voir le bouton « Réouvrir » dédié. */}
+            {!CLOSED.has(ticket.status.name) && (
+              <DropdownMenuItem onSelect={() => setDialog("status")}>Changer le statut</DropdownMenuItem>
+            )}
             <DropdownMenuItem onSelect={() => setDialog("priority")}>Changer la priorité</DropdownMenuItem>
             {isManager(role) && <DropdownMenuItem onSelect={() => setDialog("assign")}>Attribuer / réassigner</DropdownMenuItem>}
             <DropdownMenuItem onSelect={() => setDialog("escalate")}>
@@ -134,8 +153,11 @@ interface DialogBaseProps {
 function StatusDialog({ open, onOpenChange, ticket, onDone }: DialogBaseProps) {
   const { data: statuses } = useStatuses();
   const { toast } = useToast();
-  const [value, setValue] = useState<string>(String(ticket.status.id));
+  const [value, setValue] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const allowedNames = ALLOWED_STATUS_TRANSITIONS[ticket.status.name] ?? [];
+  const options = statuses?.filter((status) => allowedNames.includes(status.name));
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -159,16 +181,16 @@ function StatusDialog({ open, onOpenChange, ticket, onDone }: DialogBaseProps) {
           <DialogDescription>Sélectionnez le nouveau statut du ticket {ticket.reference}.</DialogDescription>
         </DialogHeader>
         <Select value={value} onValueChange={setValue}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger><SelectValue placeholder="Sélectionner un statut" /></SelectTrigger>
           <SelectContent>
-            {statuses?.map((status) => (
+            {options?.map((status) => (
               <SelectItem key={status.id} value={String(status.id)}>{status.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>{isSubmitting && <Loader2 className="animate-spin" />} Valider</Button>
+          <Button onClick={handleSubmit} disabled={isSubmitting || !value}>{isSubmitting && <Loader2 className="animate-spin" />} Valider</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

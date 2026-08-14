@@ -38,6 +38,7 @@ from app.services.notification_service import notify_ticket_participants, notify
 from app.services.reference_service import generate_ticket_reference
 from app.services.sla_service import compute_sla_progress
 from app.services.ticket_service import find_active_sla_for_priority
+from app.services.ticket_state_machine import describe_invalid_transition
 
 router = APIRouter(prefix="/api/tickets", tags=["Tickets"])
 
@@ -398,20 +399,26 @@ def assign_ticket(
 def change_status(
     ticket_id: int, payload: TicketStatusRequest, current_user: User = Depends(require_staff), db: Session = Depends(get_db)
 ):
-    """Change le statut d'un ticket (membre du personnel support uniquement)."""
+    """
+    Change le statut d'un ticket parmi les statuts actifs (membre du personnel
+    support uniquement). Résolu et Fermé restent exclusivement accessibles via
+    les actions dédiées « Résoudre »/« Fermer »/« Réouvrir » (correctif #13) :
+    ce sont les seules à synchroniser correctement resolved_at/closed_at,
+    évitant qu'un ticket redevienne actif tout en gardant une date de
+    résolution non nulle.
+    """
     ticket = _get_ticket_or_404(db, ticket_id)
     new_status = db.get(StatusModel, payload.status_id)
     if new_status is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Statut invalide.")
 
     old_status_name = ticket.status.name
+    invalid_reason = describe_invalid_transition(current_status_name=old_status_name, target_status_name=new_status.name)
+    if invalid_reason is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=invalid_reason)
+
     ticket.status = new_status
     _mark_first_response_if_needed(ticket)
-
-    if new_status.name == STATUS_RESOLU:
-        ticket.resolved_at = datetime.now(timezone.utc)
-    if new_status.name == STATUS_FERME:
-        ticket.closed_at = datetime.now(timezone.utc)
 
     log_ticket_action(db, ticket=ticket, user_id=current_user.id, action="changement_statut", old_value=old_status_name, new_value=new_status.name)
     notify_ticket_participants(

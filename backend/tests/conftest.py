@@ -45,7 +45,10 @@ def db_session():
     # Données de référence minimales nécessaires aux tests
     for name in [ROLE_UTILISATEUR, ROLE_TECHNICIEN, ROLE_RESPONSABLE_IT, ROLE_ADMINISTRATEUR]:
         session.add(Role(name=name))
-    for name, description in [("Nouveau", ""), ("Ouvert", ""), ("En cours", ""), ("Résolu", ""), ("Fermé", ""), ("Réouvert", "")]:
+    for name, description in [
+        ("Nouveau", ""), ("Ouvert", ""), ("En cours", ""), ("En attente", ""),
+        ("Résolu", ""), ("Fermé", ""), ("Réouvert", ""), ("Annulé", ""),
+    ]:
         session.add(Status(name=name, description=description))
     for name, level in [("Basse", 1), ("Normale", 2), ("Haute", 3), ("Critique", 4)]:
         session.add(Priority(name=name, level=level))
