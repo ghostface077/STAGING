@@ -23,6 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/components/ui/use-toast";
 import { useDepartments, useRoles } from "@/hooks/use-reference-data";
 import { getErrorMessage, usersApi } from "@/lib/api";
+import { strongPasswordSchema } from "@/lib/password-policy";
 import type { User } from "@/lib/types";
 
 const PAGE_SIZE = 20;
@@ -31,7 +32,9 @@ const userSchema = z.object({
   first_name: z.string().min(1, "Le prénom est obligatoire."),
   last_name: z.string().min(1, "Le nom est obligatoire."),
   email: z.string().min(1, "L'adresse e-mail est obligatoire.").email("Adresse e-mail invalide."),
-  password: z.string().min(8, "8 caractères minimum.").optional().or(z.literal("")),
+  // Optionnel en édition (laisser vide = ne pas changer) ; la politique de
+  // complexité s'applique dès qu'une valeur est saisie.
+  password: strongPasswordSchema.optional().or(z.literal("")),
   role_id: z.string().min(1, "Le rôle est obligatoire."),
   department_id: z.string().optional(),
 });

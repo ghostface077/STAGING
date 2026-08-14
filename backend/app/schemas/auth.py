@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field
 
+from app.schemas.password import StrongPassword
 from app.schemas.user import UserOut
 
 
@@ -12,7 +13,7 @@ class RegisterRequest(BaseModel):
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
     email: EmailStr
-    password: str = Field(min_length=8, max_length=128)
+    password: StrongPassword
     phone: str | None = None
     department_id: int | None = None
 

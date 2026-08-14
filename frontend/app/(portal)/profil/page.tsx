@@ -16,17 +16,22 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { getErrorMessage, usersApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { strongPasswordSchema } from "@/lib/password-policy";
 import { getInitials } from "@/lib/utils";
 
 const passwordSchema = z
   .object({
     current_password: z.string().min(1, "Le mot de passe actuel est obligatoire."),
-    new_password: z.string().min(8, "Le nouveau mot de passe doit contenir au moins 8 caractères."),
+    new_password: strongPasswordSchema,
     confirm_password: z.string().min(1, "Merci de confirmer le nouveau mot de passe."),
   })
   .refine((data) => data.new_password === data.confirm_password, {
     message: "Les mots de passe ne correspondent pas.",
     path: ["confirm_password"],
+  })
+  .refine((data) => data.new_password !== data.current_password, {
+    message: "Le nouveau mot de passe doit être différent de l'actuel.",
+    path: ["new_password"],
   });
 type PasswordFormValues = z.infer<typeof passwordSchema>;
 

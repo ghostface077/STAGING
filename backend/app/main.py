@@ -5,6 +5,7 @@ import logging
 import time
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -124,12 +125,18 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         "Validation invalide sur %s %s (%s champ(s) en erreur)",
         request.method, request.url.path, len(exc.errors()),
     )
+    # jsonable_encoder est indispensable ici (pas un json.dumps direct) : les
+    # erreurs levées par un validateur personnalisé (ValueError, ex. politique
+    # de mot de passe du correctif #14) embarquent l'exception d'origine dans
+    # `ctx`, non sérialisable telle quelle en JSON — bug latent depuis
+    # l'écriture initiale de ce handler, resté invisible tant qu'aucun
+    # validateur personnalisé n'existait dans le projet.
     return JSONResponse(
         status_code=422,
-        content={
+        content=jsonable_encoder({
             "message": "Les données envoyées sont invalides. Merci de vérifier le formulaire.",
             "details": exc.errors(),
-        },
+        }),
     )
 
 

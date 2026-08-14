@@ -13,12 +13,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authApi, getErrorMessage } from "@/lib/api";
+import { strongPasswordSchema } from "@/lib/password-policy";
 
 const registerSchema = z.object({
   first_name: z.string().min(1, "Le prénom est obligatoire."),
   last_name: z.string().min(1, "Le nom est obligatoire."),
   email: z.string().min(1, "L'adresse e-mail est obligatoire.").email("Adresse e-mail invalide."),
-  password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères."),
+  password: strongPasswordSchema,
 });
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
