@@ -1,4 +1,6 @@
 """Authentification : connexion, inscription, utilisateur courant, déconnexion."""
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
@@ -14,6 +16,7 @@ from app.security import create_access_token, hash_password, verify_password
 from app.services.history_service import log_audit
 
 router = APIRouter(prefix="/api/auth", tags=["Authentification"])
+logger = logging.getLogger("app.auth")
 
 # 5 tentatives par minute et par IP : assez restrictif pour freiner un
 # bourrage d'identifiants (brute-force / credential stuffing), assez généreux
@@ -29,11 +32,22 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     user = db.query(User).filter(User.email == payload.email.lower()).first()
 
     if user is None or not verify_password(payload.password, user.password_hash):
+        # Jamais le mot de passe fourni, uniquement l'e-mail visé et l'IP source —
+        # permet de détecter un compte spécifiquement ciblé (credential stuffing),
+        # ce que le rate limiting seul (correctif #04) ne rend pas observable.
+        logger.warning(
+            "Échec de connexion pour %s depuis %s",
+            payload.email.lower(), request.client.host if request.client else "IP inconnue",
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="E-mail ou mot de passe incorrect.",
         )
     if not user.is_active:
+        logger.warning(
+            "Tentative de connexion sur un compte désactivé : %s depuis %s",
+            payload.email.lower(), request.client.host if request.client else "IP inconnue",
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Votre compte a été désactivé. Contactez un administrateur.",

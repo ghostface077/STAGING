@@ -1,6 +1,9 @@
 """
 Point d'entrée de l'API FastAPI — IT Support (gestion de tickets).
 """
+import logging
+import time
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,7 +13,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 from app.config import settings
+from app.logging_config import configure_logging
 from app.rate_limit import limiter
+from app.security import decode_token
+
+configure_logging()
+logger = logging.getLogger("app.requests")
 from app.routers import (
     attachments,
     audit_logs,
@@ -49,6 +57,39 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+def _extract_user_id(request: Request) -> str | None:
+    """Best-effort, jamais levé : sert uniquement à enrichir un log, ne doit
+    jamais interférer avec l'authentification réelle (gérée par
+    `get_current_user`, non touché par ce correctif)."""
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header.lower().startswith("bearer "):
+        return None
+    payload = decode_token(auth_header[7:])
+    return str(payload["sub"]) if payload and "sub" in payload else None
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Journalise chaque requête (correctif #10) : méthode, chemin, statut,
+    durée, et l'utilisateur authentifié le cas échéant — jamais le corps de la
+    requête, qui peut contenir un mot de passe ou un jeton."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        started_at = time.monotonic()
+        response = await call_next(request)
+        try:
+            duration_ms = round((time.monotonic() - started_at) * 1000, 1)
+            user_id = _extract_user_id(request)
+            logger.info(
+                "%s %s -> %s (%sms)%s",
+                request.method, request.url.path, response.status_code, duration_ms,
+                f" [user={user_id}]" if user_id else "",
+            )
+        except Exception:
+            # Une erreur de journalisation ne doit jamais faire échouer la requête elle-même.
+            pass
+        return response
+
+
 app = FastAPI(
     title="IT Support — API de gestion de tickets",
     description="API REST pour la plateforme de gestion des incidents et demandes informatiques.",
@@ -59,6 +100,7 @@ app = FastAPI(
 )
 
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -77,6 +119,10 @@ app.state.limiter = limiter
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Traduit les erreurs de validation Pydantic en un message générique en français."""
+    logger.warning(
+        "Validation invalide sur %s %s (%s champ(s) en erreur)",
+        request.method, request.url.path, len(exc.errors()),
+    )
     return JSONResponse(
         status_code=422,
         content={
@@ -90,11 +136,30 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     """Réponse générique en cas de dépassement du quota de requêtes : ne révèle
     ni le seuil configuré, ni la moindre information sur le compte visé."""
+    logger.warning(
+        "Quota de requêtes dépassé sur %s %s depuis %s",
+        request.method, request.url.path, request.client.host if request.client else "IP inconnue",
+    )
     response = JSONResponse(
         status_code=429,
         content={"message": "Trop de tentatives. Merci de réessayer dans quelques instants."},
     )
     return limiter._inject_headers(response, request.state.view_rate_limit)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Filet de sécurité pour toute exception non prévue (correctif #10) :
+    journalise la trace complète côté serveur, sans jamais l'exposer au client.
+    Starlette donne toujours priorité au gestionnaire le plus spécifique
+    (HTTPException a le sien, déjà enregistré par FastAPI) : ce gestionnaire
+    générique ne capte donc que les erreurs réellement non gérées (bugs,
+    erreurs de base de données, etc.), jamais les 401/403/404 habituels."""
+    logger.exception("Erreur non gérée sur %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"message": "Une erreur interne est survenue. Merci de réessayer plus tard."},
+    )
 
 
 @app.get("/api/health", tags=["Santé"])
