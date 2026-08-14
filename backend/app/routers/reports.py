@@ -22,6 +22,21 @@ from app.services.sla_service import compute_sla_progress
 router = APIRouter(prefix="/api/reports", tags=["Rapports"])
 
 
+def _sanitize_csv_field(value: str | None) -> str:
+    """Neutralise une valeur avant écriture dans le CSV, pour empêcher toute
+    interprétation comme formule par un tableur (Excel/LibreOffice/Google
+    Sheets) — correctif #11, injection CSV / Formula Injection (CWE-1236).
+    Une valeur commençant par =, +, -, @, tabulation ou retour chariot est
+    préfixée d'une apostrophe, qui neutralise la formule sans altérer le
+    contenu visible ; toute autre valeur est retournée strictement inchangée."""
+    if value is None:
+        return ""
+    text = str(value)
+    if text.startswith(("=", "+", "-", "@", "\t", "\r")):
+        return f"'{text}"
+    return text
+
+
 def _period_query(db: Session, date_from: date | None, date_to: date | None):
     query = db.query(Ticket).options(
         joinedload(Ticket.requester), joinedload(Ticket.technician), joinedload(Ticket.category),
@@ -98,12 +113,12 @@ def export_csv(
     for t in tickets:
         writer.writerow([
             t.reference,
-            t.title,
+            _sanitize_csv_field(t.title),
             t.status.name,
             t.priority.name,
             t.category.name,
-            t.requester.full_name,
-            t.technician.full_name if t.technician else "",
+            _sanitize_csv_field(t.requester.full_name),
+            _sanitize_csv_field(t.technician.full_name) if t.technician else "",
             t.created_at.strftime("%Y-%m-%d %H:%M"),
             t.resolved_at.strftime("%Y-%m-%d %H:%M") if t.resolved_at else "",
         ])
