@@ -2,13 +2,17 @@
 
 /**
  * Contexte d'authentification global : utilisateur connecté, connexion, déconnexion.
- * Le token JWT est conservé dans le localStorage et injecté automatiquement par lib/api.ts.
+ * Correctif #12 : la session est portée par des cookies httpOnly posés par le
+ * serveur (access token + refresh token) — le frontend ne lit ni ne stocke
+ * plus aucun jeton lui-même (jusqu'ici conservé en localStorage, lisible par
+ * tout script exécuté sur la page). L'état d'authentification est déterminé
+ * en interrogeant /auth/me au chargement : succès = connecté, 401 = non
+ * connecté, sans jamais avoir besoin d'inspecter un jeton côté client.
  */
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { authApi } from "@/lib/api";
-import { TOKEN_STORAGE_KEY } from "@/lib/constants";
 import type { User } from "@/lib/types";
 
 interface AuthContextValue {
@@ -27,17 +31,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const loadUser = useCallback(async () => {
-    const token = typeof window !== "undefined" ? window.localStorage.getItem(TOKEN_STORAGE_KEY) : null;
-    if (!token) {
-      setUser(null);
-      setIsLoading(false);
-      return;
-    }
     try {
       const response = await authApi.me();
       setUser(response.data);
     } catch {
-      window.localStorage.removeItem(TOKEN_STORAGE_KEY);
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -51,14 +48,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const response = await authApi.login(email, password);
-    window.localStorage.setItem(TOKEN_STORAGE_KEY, response.data.access_token);
     setUser(response.data.user);
     return response.data.user as User;
   }, []);
 
   const logout = useCallback(() => {
     authApi.logout().catch(() => undefined);
-    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
     setUser(null);
     router.push("/login");
   }, [router]);

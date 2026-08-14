@@ -18,6 +18,9 @@ class RegisterRequest(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+    """Réponse de connexion/inscription (correctif #12) : ne contient plus le
+    jeton lui-même — access token et refresh token sont posés en cookies
+    httpOnly, jamais exposés dans le corps de la réponse où un script pourrait
+    les lire."""
+
     user: UserOut

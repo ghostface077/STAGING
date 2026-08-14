@@ -4,7 +4,6 @@
  */
 import axios, { AxiosError } from "axios";
 
-import { TOKEN_STORAGE_KEY } from "@/lib/constants";
 import type {
   AuditLog,
   Category,
@@ -32,26 +31,50 @@ import type {
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
 
-export const apiClient = axios.create({ baseURL: API_BASE_URL });
+// Correctif #12 : l'access token et le refresh token sont portés par des
+// cookies httpOnly posés par le serveur — plus de lecture/écriture de
+// localStorage ni d'en-tête Authorization manuel (le navigateur joint les
+// cookies automatiquement). withCredentials est nécessaire pour que ces
+// cookies soient envoyés/acceptés en cross-origin (front et API sur des ports
+// différents en développement) ; le backend autorise déjà les credentials
+// pour l'origine configurée (voir CORSMiddleware dans app/main.py).
+export const apiClient = axios.create({ baseURL: API_BASE_URL, withCredentials: true });
 
-apiClient.interceptors.request.use((config) => {
-  if (typeof window !== "undefined") {
-    const token = window.localStorage.getItem(TOKEN_STORAGE_KEY);
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+/** Empêche plusieurs requêtes en échec simultané de déclencher chacune leur
+ * propre appel /auth/refresh (le refresh token est remplacé à chaque usage —
+ * rotation, correctif #12 — donc un appel concurrent redondant échouerait). */
+let refreshPromise: Promise<boolean> | null = null;
+
+function attemptRefresh(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = apiClient
+      .post("/auth/refresh")
+      .then(() => true)
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null;
+      });
   }
-  return config;
-});
+  return refreshPromise;
+}
 
 apiClient.interceptors.response.use(
   (response) => response,
-  (error: AxiosError) => {
-    if (error.response?.status === 401 && typeof window !== "undefined") {
-      window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-      if (!window.location.pathname.includes("/login")) {
-        window.location.href = "/login";
+  async (error: AxiosError) => {
+    const originalRequest = error.config as (AxiosError["config"] & { _retry?: boolean }) | undefined;
+    const url = originalRequest?.url ?? "";
+    const isAuthEndpoint = url.includes("/auth/login") || url.includes("/auth/refresh") || url.includes("/auth/register");
+
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isAuthEndpoint) {
+      originalRequest._retry = true;
+      const refreshed = await attemptRefresh();
+      if (refreshed) {
+        return apiClient(originalRequest);
       }
+    }
+
+    if (error.response?.status === 401 && typeof window !== "undefined" && !window.location.pathname.includes("/login")) {
+      window.location.href = "/login";
     }
     return Promise.reject(error);
   },
@@ -67,10 +90,12 @@ export function getErrorMessage(error: unknown): string {
 }
 
 // --- Authentification ---
+// Correctif #12 : la connexion/inscription ne renvoie plus de jeton dans le
+// corps de la réponse (posé en cookie httpOnly), uniquement l'utilisateur.
 export const authApi = {
-  login: (email: string, password: string) => apiClient.post("/auth/login", { email, password }),
+  login: (email: string, password: string) => apiClient.post<{ user: User }>("/auth/login", { email, password }),
   register: (payload: { first_name: string; last_name: string; email: string; password: string; phone?: string }) =>
-    apiClient.post("/auth/register", payload),
+    apiClient.post<{ user: User }>("/auth/register", payload),
   me: () => apiClient.get<User>("/auth/me"),
   logout: () => apiClient.post("/auth/logout"),
 };

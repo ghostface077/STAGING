@@ -9,7 +9,7 @@ from app.config import settings
 from app.models.attachment import Attachment
 from app.models.category import Category
 from app.models.priority import Priority
-from tests.conftest import auth_headers, create_user
+from tests.conftest import auth_cookies, create_user
 
 
 @pytest.fixture(autouse=True)
@@ -52,15 +52,15 @@ def _ticket_payload(db_session):
 
 def _create_ticket(client, db_session, requester_email):
     return client.post(
-        "/api/tickets", json=_ticket_payload(db_session), headers=auth_headers(client, requester_email)
+        "/api/tickets", json=_ticket_payload(db_session), cookies=auth_cookies(client, requester_email)
     ).json()
 
 
-def _upload(client, ticket_id, headers, filename, content, content_type):
+def _upload(client, ticket_id, cookies, filename, content, content_type):
     return client.post(
         f"/api/tickets/{ticket_id}/attachments",
         files={"file": (filename, content, content_type)},
-        headers=headers,
+        cookies=cookies,
     )
 
 
@@ -71,7 +71,7 @@ def test_valid_file_upload_accepted(client, db_session):
     ticket = _create_ticket(client, db_session, "up1@test.example")
 
     response = _upload(
-        client, ticket["id"], auth_headers(client, "up1@test.example"), "photo.png", PNG_BYTES, "image/png"
+        client, ticket["id"], auth_cookies(client, "up1@test.example"), "photo.png", PNG_BYTES, "image/png"
     )
     assert response.status_code == 201
     assert response.json()["file_name"] == "photo.png"
@@ -82,7 +82,7 @@ def test_valid_pdf_upload_accepted(client, db_session):
     ticket = _create_ticket(client, db_session, "up1b@test.example")
 
     response = _upload(
-        client, ticket["id"], auth_headers(client, "up1b@test.example"), "rapport.pdf", PDF_BYTES, "application/pdf"
+        client, ticket["id"], auth_cookies(client, "up1b@test.example"), "rapport.pdf", PDF_BYTES, "application/pdf"
     )
     assert response.status_code == 201
 
@@ -95,7 +95,7 @@ def test_pdf_extension_with_html_content_rejected(client, db_session):
     ticket = _create_ticket(client, db_session, "up2@test.example")
 
     response = _upload(
-        client, ticket["id"], auth_headers(client, "up2@test.example"), "document.pdf", HTML_BYTES, "application/pdf"
+        client, ticket["id"], auth_cookies(client, "up2@test.example"), "document.pdf", HTML_BYTES, "application/pdf"
     )
     assert response.status_code == 400
 
@@ -106,7 +106,7 @@ def test_jpg_extension_with_non_image_content_rejected(client, db_session):
     ticket = _create_ticket(client, db_session, "up3@test.example")
 
     response = _upload(
-        client, ticket["id"], auth_headers(client, "up3@test.example"), "image.jpg", NOT_AN_IMAGE_BYTES, "image/jpeg"
+        client, ticket["id"], auth_cookies(client, "up3@test.example"), "image.jpg", NOT_AN_IMAGE_BYTES, "image/jpeg"
     )
     assert response.status_code == 400
 
@@ -119,7 +119,7 @@ def test_falsified_content_type_rejected(client, db_session):
     ticket = _create_ticket(client, db_session, "up5@test.example")
 
     response = _upload(
-        client, ticket["id"], auth_headers(client, "up5@test.example"), "photo.png", PNG_BYTES, "application/pdf"
+        client, ticket["id"], auth_cookies(client, "up5@test.example"), "photo.png", PNG_BYTES, "application/pdf"
     )
     assert response.status_code == 400
 
@@ -134,7 +134,7 @@ def test_oversized_file_rejected(client, db_session, monkeypatch):
     oversized_content = PNG_BYTES + b"\x00" * (2 * 1024 * 1024)  # ~2 Mo > 1 Mo
 
     response = _upload(
-        client, ticket["id"], auth_headers(client, "up6@test.example"), "gros_fichier.png", oversized_content, "image/png"
+        client, ticket["id"], auth_cookies(client, "up6@test.example"), "gros_fichier.png", oversized_content, "image/png"
     )
     assert response.status_code == 400
     assert "taille maximale" in response.json()["detail"]
@@ -147,7 +147,7 @@ def test_forbidden_extension_rejected(client, db_session):
     ticket = _create_ticket(client, db_session, "up7@test.example")
 
     response = _upload(
-        client, ticket["id"], auth_headers(client, "up7@test.example"),
+        client, ticket["id"], auth_cookies(client, "up7@test.example"),
         "notes.bat", b"contenu quelconque", "application/octet-stream",
     )
     assert response.status_code == 400
@@ -159,7 +159,7 @@ def test_empty_file_rejected(client, db_session):
     create_user(db_session, "up8@test.example", "Utilisateur")
     ticket = _create_ticket(client, db_session, "up8@test.example")
 
-    response = _upload(client, ticket["id"], auth_headers(client, "up8@test.example"), "vide.txt", b"", "text/plain")
+    response = _upload(client, ticket["id"], auth_cookies(client, "up8@test.example"), "vide.txt", b"", "text/plain")
     assert response.status_code == 400
 
 
@@ -171,7 +171,7 @@ def test_corrupted_file_rejected(client, db_session):
     ticket = _create_ticket(client, db_session, "up9@test.example")
 
     response = _upload(
-        client, ticket["id"], auth_headers(client, "up9@test.example"), "rapport.pdf", GARBAGE_BYTES, "application/pdf"
+        client, ticket["id"], auth_cookies(client, "up9@test.example"), "rapport.pdf", GARBAGE_BYTES, "application/pdf"
     )
     assert response.status_code == 400
 
@@ -183,7 +183,7 @@ def test_path_traversal_filename_does_not_escape_upload_dir(client, db_session):
     ticket = _create_ticket(client, db_session, "up10@test.example")
 
     response = _upload(
-        client, ticket["id"], auth_headers(client, "up10@test.example"),
+        client, ticket["id"], auth_cookies(client, "up10@test.example"),
         "../../malicious.txt", b"contenu texte inoffensif", "text/plain",
     )
     assert response.status_code == 201
@@ -209,12 +209,12 @@ def test_download_forbidden_without_ticket_access(client, db_session):
     create_user(db_session, "intrus11@test.example", "Utilisateur")
     ticket = _create_ticket(client, db_session, "proprio11@test.example")
     upload_resp = _upload(
-        client, ticket["id"], auth_headers(client, "proprio11@test.example"), "photo.png", PNG_BYTES, "image/png"
+        client, ticket["id"], auth_cookies(client, "proprio11@test.example"), "photo.png", PNG_BYTES, "image/png"
     )
     attachment_id = upload_resp.json()["id"]
 
     response = client.get(
-        f"/api/attachments/{attachment_id}/download", headers=auth_headers(client, "intrus11@test.example")
+        f"/api/attachments/{attachment_id}/download", cookies=auth_cookies(client, "intrus11@test.example")
     )
     assert response.status_code == 403
 
@@ -225,12 +225,12 @@ def test_download_allowed_for_authorized_user(client, db_session):
     create_user(db_session, "proprio12@test.example", "Utilisateur")
     ticket = _create_ticket(client, db_session, "proprio12@test.example")
     upload_resp = _upload(
-        client, ticket["id"], auth_headers(client, "proprio12@test.example"), "photo.png", PNG_BYTES, "image/png"
+        client, ticket["id"], auth_cookies(client, "proprio12@test.example"), "photo.png", PNG_BYTES, "image/png"
     )
     attachment_id = upload_resp.json()["id"]
 
     response = client.get(
-        f"/api/attachments/{attachment_id}/download", headers=auth_headers(client, "proprio12@test.example")
+        f"/api/attachments/{attachment_id}/download", cookies=auth_cookies(client, "proprio12@test.example")
     )
     assert response.status_code == 200
     assert response.content == PNG_BYTES
@@ -244,12 +244,12 @@ def test_download_response_has_nosniff_header(client, db_session):
     create_user(db_session, "nosniff1@test.example", "Utilisateur")
     ticket = _create_ticket(client, db_session, "nosniff1@test.example")
     upload_resp = _upload(
-        client, ticket["id"], auth_headers(client, "nosniff1@test.example"), "photo.png", PNG_BYTES, "image/png"
+        client, ticket["id"], auth_cookies(client, "nosniff1@test.example"), "photo.png", PNG_BYTES, "image/png"
     )
     attachment_id = upload_resp.json()["id"]
 
     response = client.get(
-        f"/api/attachments/{attachment_id}/download", headers=auth_headers(client, "nosniff1@test.example")
+        f"/api/attachments/{attachment_id}/download", cookies=auth_cookies(client, "nosniff1@test.example")
     )
     assert response.status_code == 200
     assert response.headers.get("x-content-type-options") == "nosniff"
@@ -268,7 +268,7 @@ def test_normal_responses_still_work_with_nosniff_header(client, db_session):
     create_user(db_session, "nosniff2@test.example", "Utilisateur")
     login = client.post("/api/auth/login", json={"email": "nosniff2@test.example", "password": "MotDePasse123!"})
     assert login.status_code == 200
-    assert "access_token" in login.json()
+    assert "access_token" in login.cookies
     assert login.headers.get("x-content-type-options") == "nosniff"
 
     ticket = _create_ticket(client, db_session, "nosniff2@test.example")
@@ -281,12 +281,12 @@ def test_download_manipulated_id_does_not_leak_other_ticket_attachment(client, d
     create_user(db_session, "proprio-b@test.example", "Utilisateur")
     ticket_a = _create_ticket(client, db_session, "proprio-a@test.example")
     upload_resp = _upload(
-        client, ticket_a["id"], auth_headers(client, "proprio-a@test.example"), "photo.png", PNG_BYTES, "image/png"
+        client, ticket_a["id"], auth_cookies(client, "proprio-a@test.example"), "photo.png", PNG_BYTES, "image/png"
     )
     attachment_id = upload_resp.json()["id"]
 
     response = client.get(
-        f"/api/attachments/{attachment_id}/download", headers=auth_headers(client, "proprio-b@test.example")
+        f"/api/attachments/{attachment_id}/download", cookies=auth_cookies(client, "proprio-b@test.example")
     )
     assert response.status_code == 403
     assert PNG_BYTES not in response.content
@@ -313,7 +313,7 @@ def test_no_overwrite_on_uuid_collision(client, db_session, monkeypatch):
 
     try:
         response = _upload(
-            client, ticket["id"], auth_headers(client, "up13@test.example"), "nouveau.txt", b"nouveau contenu", "text/plain"
+            client, ticket["id"], auth_cookies(client, "up13@test.example"), "nouveau.txt", b"nouveau contenu", "text/plain"
         )
         assert response.status_code == 201
 

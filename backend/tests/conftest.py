@@ -86,24 +86,36 @@ def create_user(db_session, email: str, role_name: str, password: str = "MotDePa
     return user
 
 
-def auth_headers(client, email: str, password: str = "MotDePasse123!") -> dict:
-    """Retourne les en-têtes d'authentification pour `email`, en réutilisant le
-    token déjà obtenu sur ce `client` si un appel précédent l'a déjà connecté.
+def auth_cookies(client, email: str, password: str = "MotDePasse123!") -> dict:
+    """Retourne les cookies d'authentification pour `email` (correctif #12 :
+    l'API pose désormais des cookies httpOnly plutôt que de renvoyer le jeton
+    dans le corps de la réponse), en réutilisant la session déjà obtenue sur ce
+    `client` si un appel précédent l'a déjà connecté.
 
     Le cache est indispensable depuis l'introduction du rate limiting sur
     /api/auth/login (correctif #04) : plusieurs tests simulent des scénarios
     impliquant 4-5 utilisateurs différents et appelaient jusque-là `login` à
-    chaque `auth_headers(...)`, ce qui pouvait dépasser le quota (5/minute)
+    chaque `auth_cookies(...)`, ce qui pouvait dépasser le quota (5/minute)
     en un seul test — alors qu'une session réelle ne s'authentifie qu'une
     seule fois. Ce cache reproduit ce comportement réaliste sans affaiblir
     la protection (les tests dédiés au rate limiting, eux, appellent
-    directement `/api/auth/login`, sans passer par ce cache)."""
-    cache: dict[tuple[str, str], str] = getattr(client, "_auth_token_cache", None) or {}
-    client._auth_token_cache = cache
+    directement `/api/auth/login`, sans passer par ce cache).
+
+    Le jar de cookies persistant du `client` est systématiquement vidé après
+    chaque connexion : sans cela, les cookies d'un utilisateur resteraient
+    attachés implicitement à toute requête ultérieure sur le même `client`
+    (y compris des appels volontairement non authentifiés, ou authentifiés
+    comme un autre utilisateur dans le même test) — le seul moyen valide de
+    s'authentifier dans les tests est de passer explicitement
+    `cookies=auth_cookies(client, email)` à chaque appel, à l'identique du
+    fonctionnement précédent avec `headers=auth_headers(...)`."""
+    cache: dict[tuple[str, str], dict[str, str]] = getattr(client, "_auth_cookie_cache", None) or {}
+    client._auth_cookie_cache = cache
 
     key = (email, password)
     if key not in cache:
         response = client.post("/api/auth/login", json={"email": email, "password": password})
         assert response.status_code == 200, response.text
-        cache[key] = response.json()["access_token"]
-    return {"Authorization": f"Bearer {cache[key]}"}
+        cache[key] = dict(response.cookies)
+        client.cookies.clear()
+    return cache[key]

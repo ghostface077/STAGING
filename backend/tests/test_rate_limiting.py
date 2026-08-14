@@ -12,7 +12,8 @@ def test_normal_login_still_works(client, db_session):
         "/api/auth/login", json={"email": "normal@test.example", "password": "MotDePasse123!"}
     )
     assert response.status_code == 200
-    assert "access_token" in response.json()
+    assert response.json()["user"]["email"] == "normal@test.example"
+    assert "access_token" in response.cookies
 
 
 def test_a_few_failed_attempts_are_not_blocked(client, db_session):
@@ -51,6 +52,7 @@ def test_excessive_login_attempts_are_rate_limited(client, db_session):
     # La réponse de blocage ne doit contenir aucune donnée sur le compte (pas de token, pas d'email).
     assert "access_token" not in blocked.text
     assert "cible@test.example" not in blocked.text
+    assert "access_token" not in blocked.cookies
 
 
 def test_rate_limit_also_blocks_valid_credentials_once_quota_exceeded(client, db_session):

@@ -9,7 +9,7 @@ from app.models.ticket import Ticket
 from app.models.ticket_history import TicketHistory
 from app.models.category import Category
 from app.models.priority import Priority
-from tests.conftest import auth_headers, create_user
+from tests.conftest import auth_cookies, create_user
 
 
 def _ticket_payload(db_session, title="Ticket à supprimer"):
@@ -25,7 +25,7 @@ def _ticket_payload(db_session, title="Ticket à supprimer"):
 
 def _create_ticket(client, db_session, requester_email, title="Ticket à supprimer"):
     return client.post(
-        "/api/tickets", json=_ticket_payload(db_session, title), headers=auth_headers(client, requester_email)
+        "/api/tickets", json=_ticket_payload(db_session, title), cookies=auth_cookies(client, requester_email)
     ).json()
 
 
@@ -36,13 +36,13 @@ def test_soft_delete_hides_ticket_from_list_and_detail(client, db_session):
     create_user(db_session, "req-sd1@test.example", "Utilisateur")
     ticket = _create_ticket(client, db_session, "req-sd1@test.example")
 
-    del_resp = client.delete(f"/api/tickets/{ticket['id']}", headers=auth_headers(client, "manager-sd1@test.example"))
+    del_resp = client.delete(f"/api/tickets/{ticket['id']}", cookies=auth_cookies(client, "manager-sd1@test.example"))
     assert del_resp.status_code == 200
 
-    get_resp = client.get(f"/api/tickets/{ticket['id']}", headers=auth_headers(client, "manager-sd1@test.example"))
+    get_resp = client.get(f"/api/tickets/{ticket['id']}", cookies=auth_cookies(client, "manager-sd1@test.example"))
     assert get_resp.status_code == 404
 
-    list_resp = client.get("/api/tickets", headers=auth_headers(client, "manager-sd1@test.example"))
+    list_resp = client.get("/api/tickets", cookies=auth_cookies(client, "manager-sd1@test.example"))
     ids = [t["id"] for t in list_resp.json()["items"]]
     assert ticket["id"] not in ids
 
@@ -57,7 +57,7 @@ def test_soft_delete_preserves_related_data_in_database(client, db_session):
 
     client.post(
         f"/api/tickets/{ticket['id']}/comments", json={"content": "Un commentaire.", "is_internal": False},
-        headers=auth_headers(client, "req-sd2@test.example"),
+        cookies=auth_cookies(client, "req-sd2@test.example"),
     )
     db_session.add(
         Attachment(
@@ -69,10 +69,10 @@ def test_soft_delete_preserves_related_data_in_database(client, db_session):
 
     client.post(
         f"/api/tickets/{ticket['id']}/assign", json={"technician_id": technicien.id},
-        headers=auth_headers(client, "tech-sd2@test.example"),
+        cookies=auth_cookies(client, "tech-sd2@test.example"),
     )
 
-    client.delete(f"/api/tickets/{ticket['id']}", headers=auth_headers(client, "manager-sd2@test.example"))
+    client.delete(f"/api/tickets/{ticket['id']}", cookies=auth_cookies(client, "manager-sd2@test.example"))
 
     assert db_session.query(Comment).filter(Comment.ticket_id == ticket["id"]).count() == 1
     assert db_session.query(Attachment).filter(Attachment.ticket_id == ticket["id"]).count() == 1
@@ -88,7 +88,7 @@ def test_soft_delete_logs_audit_and_history(client, db_session):
     create_user(db_session, "req-sd3@test.example", "Utilisateur")
     ticket = _create_ticket(client, db_session, "req-sd3@test.example")
 
-    client.delete(f"/api/tickets/{ticket['id']}", headers=auth_headers(client, "manager-sd3@test.example"))
+    client.delete(f"/api/tickets/{ticket['id']}", cookies=auth_cookies(client, "manager-sd3@test.example"))
 
     audit_entry = (
         db_session.query(AuditLog)
@@ -114,10 +114,10 @@ def test_cannot_delete_already_deleted_ticket(client, db_session):
     create_user(db_session, "req-sd4@test.example", "Utilisateur")
     ticket = _create_ticket(client, db_session, "req-sd4@test.example")
 
-    first = client.delete(f"/api/tickets/{ticket['id']}", headers=auth_headers(client, "manager-sd4@test.example"))
+    first = client.delete(f"/api/tickets/{ticket['id']}", cookies=auth_cookies(client, "manager-sd4@test.example"))
     assert first.status_code == 200
 
-    second = client.delete(f"/api/tickets/{ticket['id']}", headers=auth_headers(client, "manager-sd4@test.example"))
+    second = client.delete(f"/api/tickets/{ticket['id']}", cookies=auth_cookies(client, "manager-sd4@test.example"))
     assert second.status_code == 409
 
 
@@ -127,7 +127,7 @@ def test_technician_still_forbidden_from_deleting(client, db_session):
     create_user(db_session, "req-sd5@test.example", "Utilisateur")
     ticket = _create_ticket(client, db_session, "req-sd5@test.example")
 
-    response = client.delete(f"/api/tickets/{ticket['id']}", headers=auth_headers(client, "tech-sd5@test.example"))
+    response = client.delete(f"/api/tickets/{ticket['id']}", cookies=auth_cookies(client, "tech-sd5@test.example"))
     assert response.status_code == 403
 
 
@@ -137,13 +137,13 @@ def test_deleted_ticket_inaccessible_via_comments_attachments_satisfaction(clien
     create_user(db_session, "manager-sd6@test.example", "Responsable IT")
     create_user(db_session, "req-sd6@test.example", "Utilisateur")
     ticket = _create_ticket(client, db_session, "req-sd6@test.example")
-    client.delete(f"/api/tickets/{ticket['id']}", headers=auth_headers(client, "manager-sd6@test.example"))
+    client.delete(f"/api/tickets/{ticket['id']}", cookies=auth_cookies(client, "manager-sd6@test.example"))
 
-    headers = auth_headers(client, "req-sd6@test.example")
-    assert client.get(f"/api/tickets/{ticket['id']}/comments", headers=headers).status_code == 404
-    assert client.get(f"/api/tickets/{ticket['id']}/satisfaction", headers=headers).status_code == 404
+    cookies = auth_cookies(client, "req-sd6@test.example")
+    assert client.get(f"/api/tickets/{ticket['id']}/comments", cookies=cookies).status_code == 404
+    assert client.get(f"/api/tickets/{ticket['id']}/satisfaction", cookies=cookies).status_code == 404
     upload = client.post(
-        f"/api/tickets/{ticket['id']}/attachments", files={"file": ("x.txt", b"contenu", "text/plain")}, headers=headers
+        f"/api/tickets/{ticket['id']}/attachments", files={"file": ("x.txt", b"contenu", "text/plain")}, cookies=cookies
     )
     assert upload.status_code == 404
 
@@ -153,15 +153,15 @@ def test_deleted_ticket_excluded_from_dashboard_and_reports(client, db_session):
     create_user(db_session, manager_email, "Responsable IT")
     create_user(db_session, "req-sd7@test.example", "Utilisateur")
     ticket = _create_ticket(client, db_session, "req-sd7@test.example", title="Ticket unique sd7")
-    headers = auth_headers(client, manager_email)
+    cookies = auth_cookies(client, manager_email)
 
-    before = client.get("/api/dashboard/statistics", headers=headers).json()["total_tickets"]
-    client.delete(f"/api/tickets/{ticket['id']}", headers=headers)
-    after = client.get("/api/dashboard/statistics", headers=headers).json()["total_tickets"]
+    before = client.get("/api/dashboard/statistics", cookies=cookies).json()["total_tickets"]
+    client.delete(f"/api/tickets/{ticket['id']}", cookies=cookies)
+    after = client.get("/api/dashboard/statistics", cookies=cookies).json()["total_tickets"]
     assert after == before - 1
 
-    summary = client.get("/api/reports/summary", headers=headers).json()
-    export = client.get("/api/reports/export.csv", headers=headers)
+    summary = client.get("/api/reports/summary", cookies=cookies).json()
+    export = client.get("/api/reports/export.csv", cookies=cookies)
     assert "Ticket unique sd7" not in export.text
     assert summary["total_tickets"] == after
 
@@ -172,13 +172,13 @@ def test_restore_by_admin_makes_ticket_visible_again(client, db_session):
     admin = create_user(db_session, "admin-sd8@test.example", "Administrateur")
     create_user(db_session, "req-sd8@test.example", "Utilisateur")
     ticket = _create_ticket(client, db_session, "req-sd8@test.example")
-    client.delete(f"/api/tickets/{ticket['id']}", headers=auth_headers(client, "admin-sd8@test.example"))
+    client.delete(f"/api/tickets/{ticket['id']}", cookies=auth_cookies(client, "admin-sd8@test.example"))
 
-    restore = client.post(f"/api/tickets/{ticket['id']}/restore", headers=auth_headers(client, "admin-sd8@test.example"))
+    restore = client.post(f"/api/tickets/{ticket['id']}/restore", cookies=auth_cookies(client, "admin-sd8@test.example"))
     assert restore.status_code == 200
     assert restore.json()["deleted_at"] is None
 
-    get_resp = client.get(f"/api/tickets/{ticket['id']}", headers=auth_headers(client, "admin-sd8@test.example"))
+    get_resp = client.get(f"/api/tickets/{ticket['id']}", cookies=auth_cookies(client, "admin-sd8@test.example"))
     assert get_resp.status_code == 200
 
     history_entry = (
@@ -201,9 +201,9 @@ def test_restore_forbidden_for_manager(client, db_session):
     create_user(db_session, "manager-sd9@test.example", "Responsable IT")
     create_user(db_session, "req-sd9@test.example", "Utilisateur")
     ticket = _create_ticket(client, db_session, "req-sd9@test.example")
-    client.delete(f"/api/tickets/{ticket['id']}", headers=auth_headers(client, "manager-sd9@test.example"))
+    client.delete(f"/api/tickets/{ticket['id']}", cookies=auth_cookies(client, "manager-sd9@test.example"))
 
-    response = client.post(f"/api/tickets/{ticket['id']}/restore", headers=auth_headers(client, "manager-sd9@test.example"))
+    response = client.post(f"/api/tickets/{ticket['id']}/restore", cookies=auth_cookies(client, "manager-sd9@test.example"))
     assert response.status_code == 403
 
 
@@ -212,7 +212,7 @@ def test_restore_non_deleted_ticket_conflict(client, db_session):
     create_user(db_session, "req-sd10@test.example", "Utilisateur")
     ticket = _create_ticket(client, db_session, "req-sd10@test.example")
 
-    response = client.post(f"/api/tickets/{ticket['id']}/restore", headers=auth_headers(client, "admin-sd10@test.example"))
+    response = client.post(f"/api/tickets/{ticket['id']}/restore", cookies=auth_cookies(client, "admin-sd10@test.example"))
     assert response.status_code == 409
 
 
@@ -224,7 +224,7 @@ def test_include_deleted_requires_admin(client, db_session):
     create_user(db_session, "user-sd11@test.example", "Utilisateur")
 
     for email in ("manager-sd11@test.example", "tech-sd11@test.example", "user-sd11@test.example"):
-        response = client.get("/api/tickets", params={"include_deleted": "true"}, headers=auth_headers(client, email))
+        response = client.get("/api/tickets", params={"include_deleted": "true"}, cookies=auth_cookies(client, email))
         assert response.status_code == 403
 
 
@@ -234,16 +234,16 @@ def test_include_deleted_returns_only_deleted_tickets(client, db_session):
     create_user(db_session, "req-sd12@test.example", "Utilisateur")
     active_ticket = _create_ticket(client, db_session, "req-sd12@test.example", title="Actif sd12")
     deleted_ticket = _create_ticket(client, db_session, "req-sd12@test.example", title="Supprimé sd12")
-    client.delete(f"/api/tickets/{deleted_ticket['id']}", headers=auth_headers(client, admin_email))
+    client.delete(f"/api/tickets/{deleted_ticket['id']}", cookies=auth_cookies(client, admin_email))
 
     corbeille = client.get(
-        "/api/tickets", params={"include_deleted": "true"}, headers=auth_headers(client, admin_email)
+        "/api/tickets", params={"include_deleted": "true"}, cookies=auth_cookies(client, admin_email)
     ).json()
     ids = [t["id"] for t in corbeille["items"]]
     assert deleted_ticket["id"] in ids
     assert active_ticket["id"] not in ids  # jamais de mélange actifs/supprimés
 
-    normal_list = client.get("/api/tickets", headers=auth_headers(client, admin_email)).json()
+    normal_list = client.get("/api/tickets", cookies=auth_cookies(client, admin_email)).json()
     normal_ids = [t["id"] for t in normal_list["items"]]
     assert active_ticket["id"] in normal_ids
     assert deleted_ticket["id"] not in normal_ids
@@ -256,7 +256,7 @@ def test_reference_generation_still_counts_deleted_tickets(client, db_session):
     create_user(db_session, "admin-sd13@test.example", "Administrateur")
     create_user(db_session, "req-sd13@test.example", "Utilisateur")
     ticket = _create_ticket(client, db_session, "req-sd13@test.example")
-    client.delete(f"/api/tickets/{ticket['id']}", headers=auth_headers(client, "admin-sd13@test.example"))
+    client.delete(f"/api/tickets/{ticket['id']}", cookies=auth_cookies(client, "admin-sd13@test.example"))
 
     new_ticket = _create_ticket(client, db_session, "req-sd13@test.example", title="Ticket suivant")
     assert new_ticket["reference"] != ticket["reference"]

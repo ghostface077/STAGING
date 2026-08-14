@@ -2,7 +2,7 @@
 technicien (correctif #06 — GET /api/dashboard/tickets-by-technician)."""
 from app.models.category import Category
 from app.models.priority import Priority
-from tests.conftest import auth_headers, create_user
+from tests.conftest import auth_cookies, create_user
 
 
 def _ticket_payload(db_session):
@@ -20,7 +20,7 @@ def _ticket_payload(db_session):
 
 def test_regular_user_cannot_access_technician_stats(client, db_session):
     create_user(db_session, "user1@test.example", "Utilisateur")
-    response = client.get("/api/dashboard/tickets-by-technician", headers=auth_headers(client, "user1@test.example"))
+    response = client.get("/api/dashboard/tickets-by-technician", cookies=auth_cookies(client, "user1@test.example"))
     assert response.status_code == 403
 
 
@@ -29,7 +29,7 @@ def test_regular_user_cannot_access_technician_stats(client, db_session):
 
 def test_technician_cannot_access_technician_stats(client, db_session):
     create_user(db_session, "tech1@test.example", "Technicien")
-    response = client.get("/api/dashboard/tickets-by-technician", headers=auth_headers(client, "tech1@test.example"))
+    response = client.get("/api/dashboard/tickets-by-technician", cookies=auth_cookies(client, "tech1@test.example"))
     assert response.status_code == 403
 
 
@@ -40,15 +40,15 @@ def test_technician_still_gets_own_scoped_statistics(client, db_session):
     technicien = create_user(db_session, "tech1b@test.example", "Technicien")
     create_user(db_session, "req1b@test.example", "Utilisateur")
     ticket = client.post(
-        "/api/tickets", json=_ticket_payload(db_session), headers=auth_headers(client, "req1b@test.example")
+        "/api/tickets", json=_ticket_payload(db_session), cookies=auth_cookies(client, "req1b@test.example")
     ).json()
     client.post(
         f"/api/tickets/{ticket['id']}/assign",
         json={"technician_id": technicien.id},
-        headers=auth_headers(client, "tech1b@test.example"),
+        cookies=auth_cookies(client, "tech1b@test.example"),
     )
 
-    response = client.get("/api/dashboard/statistics", headers=auth_headers(client, "tech1b@test.example"))
+    response = client.get("/api/dashboard/statistics", cookies=auth_cookies(client, "tech1b@test.example"))
     assert response.status_code == 200
     assert response.json()["total_tickets"] == 1  # scopé à son propre ticket assigné
 
@@ -57,7 +57,7 @@ def test_technician_still_gets_own_scoped_statistics(client, db_session):
 
 def test_manager_can_access_technician_stats(client, db_session):
     create_user(db_session, "manager1@test.example", "Responsable IT")
-    response = client.get("/api/dashboard/tickets-by-technician", headers=auth_headers(client, "manager1@test.example"))
+    response = client.get("/api/dashboard/tickets-by-technician", cookies=auth_cookies(client, "manager1@test.example"))
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
@@ -66,7 +66,7 @@ def test_manager_can_access_technician_stats(client, db_session):
 
 def test_admin_can_access_technician_stats(client, db_session):
     create_user(db_session, "admin1@test.example", "Administrateur")
-    response = client.get("/api/dashboard/tickets-by-technician", headers=auth_headers(client, "admin1@test.example"))
+    response = client.get("/api/dashboard/tickets-by-technician", cookies=auth_cookies(client, "admin1@test.example"))
     assert response.status_code == 200
 
 
@@ -76,15 +76,15 @@ def test_manager_sees_correct_nominative_data(client, db_session):
     create_user(db_session, "manager2@test.example", "Responsable IT")
     create_user(db_session, "req2@test.example", "Utilisateur")
     ticket = client.post(
-        "/api/tickets", json=_ticket_payload(db_session), headers=auth_headers(client, "req2@test.example")
+        "/api/tickets", json=_ticket_payload(db_session), cookies=auth_cookies(client, "req2@test.example")
     ).json()
     client.post(
         f"/api/tickets/{ticket['id']}/assign",
         json={"technician_id": technicien.id},
-        headers=auth_headers(client, "tech2@test.example"),
+        cookies=auth_cookies(client, "tech2@test.example"),
     )
 
-    response = client.get("/api/dashboard/tickets-by-technician", headers=auth_headers(client, "manager2@test.example"))
+    response = client.get("/api/dashboard/tickets-by-technician", cookies=auth_cookies(client, "manager2@test.example"))
     assert response.status_code == 200
     entry = next(item for item in response.json() if item["technician_id"] == technicien.id)
     assert entry["technician_name"] == technicien.full_name
@@ -108,16 +108,16 @@ def test_manipulating_technician_id_on_ticket_list_leaks_nothing(client, db_sess
     create_user(db_session, "req3@test.example", "Utilisateur")
     create_user(db_session, "intrus3@test.example", "Utilisateur")
     ticket = client.post(
-        "/api/tickets", json=_ticket_payload(db_session), headers=auth_headers(client, "req3@test.example")
+        "/api/tickets", json=_ticket_payload(db_session), cookies=auth_cookies(client, "req3@test.example")
     ).json()
     client.post(
         f"/api/tickets/{ticket['id']}/assign",
         json={"technician_id": technicien.id},
-        headers=auth_headers(client, "tech3@test.example"),
+        cookies=auth_cookies(client, "tech3@test.example"),
     )
 
     response = client.get(
-        "/api/tickets", params={"technician_id": technicien.id}, headers=auth_headers(client, "intrus3@test.example")
+        "/api/tickets", params={"technician_id": technicien.id}, cookies=auth_cookies(client, "intrus3@test.example")
     )
     assert response.status_code == 200  # la route existe et répond normalement...
     body = response.json()
@@ -133,10 +133,10 @@ def test_global_statistics_still_work_for_authorized_roles(client, db_session):
     create_user(db_session, "admin3@test.example", "Administrateur")
 
     for email in ("manager3@test.example", "admin3@test.example"):
-        response = client.get("/api/dashboard/statistics", headers=auth_headers(client, email))
+        response = client.get("/api/dashboard/statistics", cookies=auth_cookies(client, email))
         assert response.status_code == 200
         for endpoint in ("tickets-by-status", "tickets-by-priority", "tickets-by-category", "sla"):
-            r = client.get(f"/api/dashboard/{endpoint}", headers=auth_headers(client, email))
+            r = client.get(f"/api/dashboard/{endpoint}", cookies=auth_cookies(client, email))
             assert r.status_code == 200, f"{endpoint} a régressé pour {email}"
 
 
@@ -149,9 +149,9 @@ def test_no_alternative_route_leaks_technician_stats(client, db_session):
     create_user(db_session, "tech4@test.example", "Technicien")
 
     for email in ("user4@test.example", "tech4@test.example"):
-        assert client.get("/api/reports/summary", headers=auth_headers(client, email)).status_code == 403
-        assert client.get("/api/reports/export.csv", headers=auth_headers(client, email)).status_code == 403
-        assert client.get("/api/users", headers=auth_headers(client, email)).status_code == 403
+        assert client.get("/api/reports/summary", cookies=auth_cookies(client, email)).status_code == 403
+        assert client.get("/api/reports/export.csv", cookies=auth_cookies(client, email)).status_code == 403
+        assert client.get("/api/users", cookies=auth_cookies(client, email)).status_code == 403
 
 
 # --- Test 9 : la réponse de refus ne contient aucune donnée nominative ---
@@ -160,7 +160,7 @@ def test_forbidden_response_contains_no_nominative_data(client, db_session):
     technicien = create_user(db_session, "tech5@test.example", "Technicien")
     create_user(db_session, "user5@test.example", "Utilisateur")
 
-    response = client.get("/api/dashboard/tickets-by-technician", headers=auth_headers(client, "user5@test.example"))
+    response = client.get("/api/dashboard/tickets-by-technician", cookies=auth_cookies(client, "user5@test.example"))
     assert response.status_code == 403
     assert technicien.full_name not in response.text
     assert technicien.email not in response.text

@@ -1,7 +1,7 @@
 ﻿"""Tests de la visibilité des commentaires (public vs note interne)."""
 from app.models.category import Category
 from app.models.priority import Priority
-from tests.conftest import auth_headers, create_user
+from tests.conftest import auth_cookies, create_user
 
 
 def _create_ticket(client, db_session, requester_email):
@@ -13,7 +13,7 @@ def _create_ticket(client, db_session, requester_email):
         "category_id": category.id,
         "priority_id": priority.id,
     }
-    return client.post("/api/tickets", json=payload, headers=auth_headers(client, requester_email)).json()
+    return client.post("/api/tickets", json=payload, cookies=auth_cookies(client, requester_email)).json()
 
 
 def test_internal_note_is_hidden_from_requester(client, db_session):
@@ -24,20 +24,20 @@ def test_internal_note_is_hidden_from_requester(client, db_session):
     client.post(
         f"/api/tickets/{ticket['id']}/comments",
         json={"content": "Note interne : vérifier le quota de la boîte mail.", "is_internal": True},
-        headers=auth_headers(client, "technicien@test.example"),
+        cookies=auth_cookies(client, "technicien@test.example"),
     )
     client.post(
         f"/api/tickets/{ticket['id']}/comments",
         json={"content": "Bonjour, nous étudions votre demande.", "is_internal": False},
-        headers=auth_headers(client, "technicien@test.example"),
+        cookies=auth_cookies(client, "technicien@test.example"),
     )
 
-    response_user = client.get(f"/api/tickets/{ticket['id']}/comments", headers=auth_headers(client, "demandeur@test.example"))
+    response_user = client.get(f"/api/tickets/{ticket['id']}/comments", cookies=auth_cookies(client, "demandeur@test.example"))
     assert response_user.status_code == 200
     assert len(response_user.json()) == 1
     assert response_user.json()[0]["is_internal"] is False
 
-    response_tech = client.get(f"/api/tickets/{ticket['id']}/comments", headers=auth_headers(client, "technicien@test.example"))
+    response_tech = client.get(f"/api/tickets/{ticket['id']}/comments", cookies=auth_cookies(client, "technicien@test.example"))
     assert len(response_tech.json()) == 2
 
 
@@ -48,7 +48,7 @@ def test_user_cannot_create_internal_note(client, db_session):
     response = client.post(
         f"/api/tickets/{ticket['id']}/comments",
         json={"content": "Ma tentative de note interne", "is_internal": True},
-        headers=auth_headers(client, "demandeur2@test.example"),
+        cookies=auth_cookies(client, "demandeur2@test.example"),
     )
     assert response.status_code == 201
     assert response.json()["is_internal"] is False  # rétrogradé en commentaire public

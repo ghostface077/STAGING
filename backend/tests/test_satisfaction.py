@@ -3,7 +3,7 @@ IDOR sur GET /api/tickets/{ticket_id}/satisfaction) et non-régression du cycle
 de vie existant."""
 from app.models.category import Category
 from app.models.priority import Priority
-from tests.conftest import auth_headers, create_user
+from tests.conftest import auth_cookies, create_user
 
 
 def _ticket_payload(db_session):
@@ -21,17 +21,17 @@ def _create_resolved_ticket(client, db_session, requester_email, technician):
     """Crée un ticket, l'assigne au technicien donné puis le résout — état
     requis avant de pouvoir déposer une évaluation de satisfaction."""
     ticket = client.post(
-        "/api/tickets", json=_ticket_payload(db_session), headers=auth_headers(client, requester_email)
+        "/api/tickets", json=_ticket_payload(db_session), cookies=auth_cookies(client, requester_email)
     ).json()
     client.post(
         f"/api/tickets/{ticket['id']}/assign",
         json={"technician_id": technician.id},
-        headers=auth_headers(client, technician.email),
+        cookies=auth_cookies(client, technician.email),
     )
     resolved = client.post(
         f"/api/tickets/{ticket['id']}/resolve",
         json={"solution": "Problème résolu."},
-        headers=auth_headers(client, technician.email),
+        cookies=auth_cookies(client, technician.email),
     ).json()
     return resolved
 
@@ -46,12 +46,12 @@ def test_owner_can_view_own_satisfaction(client, db_session):
     create_resp = client.post(
         f"/api/tickets/{ticket['id']}/satisfaction",
         json={"rating": 5, "comment": "Très réactif, merci."},
-        headers=auth_headers(client, "proprio1@test.example"),
+        cookies=auth_cookies(client, "proprio1@test.example"),
     )
     assert create_resp.status_code == 201
 
     get_resp = client.get(
-        f"/api/tickets/{ticket['id']}/satisfaction", headers=auth_headers(client, "proprio1@test.example")
+        f"/api/tickets/{ticket['id']}/satisfaction", cookies=auth_cookies(client, "proprio1@test.example")
     )
     assert get_resp.status_code == 200
     assert get_resp.json()["rating"] == 5
@@ -69,11 +69,11 @@ def test_other_user_cannot_view_others_satisfaction(client, db_session):
     client.post(
         f"/api/tickets/{ticket['id']}/satisfaction",
         json={"rating": 4, "comment": "Correct."},
-        headers=auth_headers(client, "proprio2@test.example"),
+        cookies=auth_cookies(client, "proprio2@test.example"),
     )
 
     response = client.get(
-        f"/api/tickets/{ticket['id']}/satisfaction", headers=auth_headers(client, "intrus2@test.example")
+        f"/api/tickets/{ticket['id']}/satisfaction", cookies=auth_cookies(client, "intrus2@test.example")
     )
     assert response.status_code == 403
     assert "rating" not in response.text  # la donnée protégée ne doit jamais fuiter dans la réponse
@@ -90,7 +90,7 @@ def test_other_user_cannot_create_satisfaction_for_others_ticket(client, db_sess
     response = client.post(
         f"/api/tickets/{ticket['id']}/satisfaction",
         json={"rating": 1, "comment": "Tentative non autorisée."},
-        headers=auth_headers(client, "intrus3@test.example"),
+        cookies=auth_cookies(client, "intrus3@test.example"),
     )
     assert response.status_code == 403
 
@@ -104,11 +104,11 @@ def test_no_delete_endpoint_exists(client, db_session):
     client.post(
         f"/api/tickets/{ticket['id']}/satisfaction",
         json={"rating": 3},
-        headers=auth_headers(client, "proprio4@test.example"),
+        cookies=auth_cookies(client, "proprio4@test.example"),
     )
 
     response = client.delete(
-        f"/api/tickets/{ticket['id']}/satisfaction", headers=auth_headers(client, "proprio4@test.example")
+        f"/api/tickets/{ticket['id']}/satisfaction", cookies=auth_cookies(client, "proprio4@test.example")
     )
     assert response.status_code == 405  # méthode non autorisée : DELETE n'est pas défini sur cette route
 
@@ -135,11 +135,11 @@ def test_manager_and_admin_can_view_any_satisfaction(client, db_session):
     client.post(
         f"/api/tickets/{ticket['id']}/satisfaction",
         json={"rating": 2, "comment": "Peut mieux faire."},
-        headers=auth_headers(client, "proprio6@test.example"),
+        cookies=auth_cookies(client, "proprio6@test.example"),
     )
 
     for email in ("manager6@test.example", "admin6@test.example"):
-        response = client.get(f"/api/tickets/{ticket['id']}/satisfaction", headers=auth_headers(client, email))
+        response = client.get(f"/api/tickets/{ticket['id']}/satisfaction", cookies=auth_cookies(client, email))
         assert response.status_code == 200, f"{email} devrait pouvoir consulter n'importe quelle évaluation"
         assert response.json()["rating"] == 2
 
@@ -153,10 +153,10 @@ def test_assigned_technician_can_view_satisfaction(client, db_session):
     client.post(
         f"/api/tickets/{ticket['id']}/satisfaction",
         json={"rating": 5},
-        headers=auth_headers(client, "proprio7@test.example"),
+        cookies=auth_cookies(client, "proprio7@test.example"),
     )
 
-    response = client.get(f"/api/tickets/{ticket['id']}/satisfaction", headers=auth_headers(client, "tech7@test.example"))
+    response = client.get(f"/api/tickets/{ticket['id']}/satisfaction", cookies=auth_cookies(client, "tech7@test.example"))
     assert response.status_code == 200
 
 
@@ -168,10 +168,10 @@ def test_unrelated_technician_cannot_view_satisfaction(client, db_session):
     client.post(
         f"/api/tickets/{ticket['id']}/satisfaction",
         json={"rating": 5},
-        headers=auth_headers(client, "proprio8@test.example"),
+        cookies=auth_cookies(client, "proprio8@test.example"),
     )
 
     # Le ticket est déjà assigné à tech8a : un autre technicien ne doit pas y avoir accès
     # (règle _can_view_ticket : technician_id == moi OU technician_id est vide).
-    response = client.get(f"/api/tickets/{ticket['id']}/satisfaction", headers=auth_headers(client, "tech8b@test.example"))
+    response = client.get(f"/api/tickets/{ticket['id']}/satisfaction", cookies=auth_cookies(client, "tech8b@test.example"))
     assert response.status_code == 403

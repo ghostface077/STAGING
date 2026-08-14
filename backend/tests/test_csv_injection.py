@@ -5,7 +5,7 @@ import io
 
 from app.models.category import Category
 from app.models.priority import Priority
-from tests.conftest import auth_headers, create_user
+from tests.conftest import auth_cookies, create_user
 
 
 def _ticket_payload(db_session, title):
@@ -21,12 +21,12 @@ def _ticket_payload(db_session, title):
 
 def _create_ticket(client, db_session, requester_email, title):
     return client.post(
-        "/api/tickets", json=_ticket_payload(db_session, title), headers=auth_headers(client, requester_email)
+        "/api/tickets", json=_ticket_payload(db_session, title), cookies=auth_cookies(client, requester_email)
     ).json()
 
 
 def _export_rows(client, manager_email):
-    response = client.get("/api/reports/export.csv", headers=auth_headers(client, manager_email))
+    response = client.get("/api/reports/export.csv", cookies=auth_cookies(client, manager_email))
     assert response.status_code == 200
     reader = csv.reader(io.StringIO(response.text), delimiter=";")
     rows = list(reader)
@@ -72,7 +72,7 @@ def test_csv_export_sanitizes_formula_technician_name(client, db_session):
     ticket = _create_ticket(client, db_session, "req-csv3@test.example", "Ticket normal csv3")
     client.post(
         f"/api/tickets/{ticket['id']}/assign", json={"technician_id": technicien.id},
-        headers=auth_headers(client, "tech-csv3@test.example"),
+        cookies=auth_cookies(client, "tech-csv3@test.example"),
     )
 
     _, rows = _export_rows(client, "manager-csv3@test.example")
@@ -148,6 +148,6 @@ def test_csv_export_permissions_unchanged(client, db_session):
     create_user(db_session, "manager-csv10@test.example", "Responsable IT")
     create_user(db_session, "admin-csv10@test.example", "Administrateur")
 
-    assert client.get("/api/reports/export.csv", headers=auth_headers(client, "user-csv10@test.example")).status_code == 403
-    assert client.get("/api/reports/export.csv", headers=auth_headers(client, "manager-csv10@test.example")).status_code == 200
-    assert client.get("/api/reports/export.csv", headers=auth_headers(client, "admin-csv10@test.example")).status_code == 200
+    assert client.get("/api/reports/export.csv", cookies=auth_cookies(client, "user-csv10@test.example")).status_code == 403
+    assert client.get("/api/reports/export.csv", cookies=auth_cookies(client, "manager-csv10@test.example")).status_code == 200
+    assert client.get("/api/reports/export.csv", cookies=auth_cookies(client, "admin-csv10@test.example")).status_code == 200

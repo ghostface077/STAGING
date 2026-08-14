@@ -20,6 +20,7 @@ from app.models.notification import Notification
 from app.models.knowledge_base import KnowledgeBaseArticle
 from app.models.satisfaction_rating import SatisfactionRating
 from app.models.audit_log import AuditLog
+from app.models.refresh_token import RefreshToken
 
 __all__ = [
     "Role",
@@ -40,4 +41,5 @@ __all__ = [
     "KnowledgeBaseArticle",
     "SatisfactionRating",
     "AuditLog",
+    "RefreshToken",
 ]

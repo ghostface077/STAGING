@@ -1,8 +1,7 @@
 """
 Dépendances FastAPI communes : utilisateur courant, contrôle des rôles (RBAC).
 """
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -13,19 +12,20 @@ from app.models.role import (
     ROLE_UTILISATEUR,
 )
 from app.models.user import User
-from app.security import decode_token
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login", auto_error=False)
+from app.security import ACCESS_TOKEN_COOKIE, decode_token
 
 CREDENTIALS_EXCEPTION = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
     detail="Impossible de vérifier vos identifiants. Veuillez vous reconnecter.",
-    headers={"WWW-Authenticate": "Bearer"},
 )
 
 
-def get_current_user(token: str | None = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
-    """Récupère l'utilisateur actuellement authentifié à partir du token JWT."""
+def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
+    """Récupère l'utilisateur actuellement authentifié à partir du cookie
+    httpOnly `access_token` (correctif #12) — auparavant l'en-tête
+    `Authorization`, dont le jeton était lu depuis le localStorage du
+    navigateur, accessible à tout script JavaScript exécuté sur la page."""
+    token = request.cookies.get(ACCESS_TOKEN_COOKIE)
     if token is None:
         raise CREDENTIALS_EXCEPTION
 

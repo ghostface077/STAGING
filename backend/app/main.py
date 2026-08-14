@@ -15,7 +15,7 @@ from starlette.responses import Response
 from app.config import settings
 from app.logging_config import configure_logging
 from app.rate_limit import limiter
-from app.security import decode_token
+from app.security import ACCESS_TOKEN_COOKIE, decode_token
 
 configure_logging()
 logger = logging.getLogger("app.requests")
@@ -60,11 +60,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 def _extract_user_id(request: Request) -> str | None:
     """Best-effort, jamais levé : sert uniquement à enrichir un log, ne doit
     jamais interférer avec l'authentification réelle (gérée par
-    `get_current_user`, non touché par ce correctif)."""
-    auth_header = request.headers.get("authorization", "")
-    if not auth_header.lower().startswith("bearer "):
+    `get_current_user`). Lit le cookie `access_token` (correctif #12 —
+    auparavant l'en-tête Authorization, remplacé par un cookie httpOnly)."""
+    token = request.cookies.get(ACCESS_TOKEN_COOKIE)
+    if not token:
         return None
-    payload = decode_token(auth_header[7:])
+    payload = decode_token(token)
     return str(payload["sub"]) if payload and "sub" in payload else None
 
 

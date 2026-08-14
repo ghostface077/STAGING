@@ -11,6 +11,7 @@ from app.schemas.common import Message, Page, PaginationParams
 from app.schemas.user import ChangePassword, SelfProfileUpdate, UserCreate, UserOut, UserUpdate
 from app.security import hash_password, verify_password
 from app.services.history_service import log_audit
+from app.services.refresh_token_service import revoke_all_refresh_tokens_for_user
 
 router = APIRouter(prefix="/api/users", tags=["Utilisateurs"])
 
@@ -134,6 +135,10 @@ def delete_user(user_id: int, current_user: User = Depends(require_manager), db:
 
     # Désactivation plutôt que suppression physique, pour préserver l'intégrité de l'historique des tickets
     user.is_active = False
+    # Correctif #12 : révoque toute session active de ce compte — sans cela, un
+    # refresh token émis avant la désactivation resterait utilisable pour
+    # renouveler indéfiniment un access token, malgré is_active=False.
+    revoke_all_refresh_tokens_for_user(db, user_id=user.id)
     log_audit(db, user_id=current_user.id, action="desactivation_utilisateur", entity_type="user", entity_id=user.id)
     db.commit()
     return Message(message="Utilisateur désactivé avec succès.")
@@ -158,5 +163,9 @@ def change_my_password(payload: ChangePassword, current_user: User = Depends(get
     if not verify_password(payload.current_password, current_user.password_hash):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Le mot de passe actuel est incorrect.")
     current_user.password_hash = hash_password(payload.new_password)
+    # Correctif #12 : referme toute session existante sur ce compte (utile en
+    # cas de compromission du mot de passe) — seule la session courante reste
+    # valide jusqu'à l'expiration naturelle, courte, de son access token.
+    revoke_all_refresh_tokens_for_user(db, user_id=current_user.id)
     db.commit()
     return Message(message="Mot de passe mis à jour avec succès.")

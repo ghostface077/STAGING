@@ -1,9 +1,11 @@
-"""Authentification : connexion, inscription, utilisateur courant, déconnexion."""
+"""Authentification : connexion, inscription, utilisateur courant, déconnexion,
+rafraîchissement de session (correctif #12)."""
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
 from app.models.role import ROLE_UTILISATEUR, Role
@@ -12,8 +14,9 @@ from app.rate_limit import limiter
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 from app.schemas.common import Message
 from app.schemas.user import UserOut
-from app.security import create_access_token, hash_password, verify_password
+from app.security import ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, create_access_token, decode_token, hash_password, verify_password
 from app.services.history_service import log_audit
+from app.services.refresh_token_service import get_active_refresh_token, issue_refresh_token, revoke_refresh_token
 
 router = APIRouter(prefix="/api/auth", tags=["Authentification"])
 logger = logging.getLogger("app.auth")
@@ -25,10 +28,45 @@ logger = logging.getLogger("app.auth")
 LOGIN_RATE_LIMIT = "5/minute"
 
 
+def _cookie_kwargs(*, path: str) -> dict:
+    """Attributs communs aux deux cookies d'authentification (correctif #12) :
+    httpOnly (inaccessible en JavaScript — la protection centrale de ce
+    correctif contre le vol de jeton par XSS, contrairement au stockage
+    précédent en localStorage) ; SameSite=Lax (le navigateur n'envoie pas le
+    cookie sur une requête POST/PUT/DELETE déclenchée depuis un autre site —
+    seules méthodes utilisées par les mutations de cette API, aucune ne se
+    fait via GET — protection CSRF suffisante ici sans jeton dédié) ; Secure
+    activé uniquement en production (l'environnement de développement local
+    tourne en HTTP simple)."""
+    return dict(httponly=True, samesite="lax", secure=settings.environment == "production", path=path)
+
+
+def _set_auth_cookies(response: Response, *, access_token: str, refresh_token: str) -> None:
+    response.set_cookie(
+        ACCESS_TOKEN_COOKIE, access_token,
+        max_age=settings.access_token_expire_minutes * 60,
+        **_cookie_kwargs(path="/"),
+    )
+    # Path restreint : le refresh token n'a besoin d'être envoyé qu'aux routes
+    # d'authentification elles-mêmes, jamais aux autres appels API.
+    response.set_cookie(
+        REFRESH_TOKEN_COOKIE, refresh_token,
+        max_age=settings.refresh_token_expire_days * 86400,
+        **_cookie_kwargs(path="/api/auth"),
+    )
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    response.delete_cookie(ACCESS_TOKEN_COOKIE, path="/")
+    response.delete_cookie(REFRESH_TOKEN_COOKIE, path="/api/auth")
+
+
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit(LOGIN_RATE_LIMIT)
-def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
-    """Authentifie un utilisateur par e-mail / mot de passe et retourne un token JWT."""
+def login(payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
+    """Authentifie un utilisateur par e-mail / mot de passe. Pose l'access
+    token et le refresh token en cookies httpOnly (correctif #12) — jamais
+    renvoyés dans le corps de la réponse."""
     user = db.query(User).filter(User.email == payload.email.lower()).first()
 
     if user is None or not verify_password(payload.password, user.password_hash):
@@ -53,7 +91,10 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
             detail="Votre compte a été désactivé. Contactez un administrateur.",
         )
 
-    token = create_access_token(subject=user.id, extra_claims={"role": user.role.name})
+    access_token = create_access_token(subject=user.id, extra_claims={"role": user.role.name})
+    refresh_token = issue_refresh_token(db, user_id=user.id)
+    _set_auth_cookies(response, access_token=access_token, refresh_token=refresh_token)
+
     log_audit(
         db,
         user_id=user.id,
@@ -64,11 +105,11 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     )
     db.commit()
     db.refresh(user)
-    return TokenResponse(access_token=token, user=UserOut.model_validate(user))
+    return TokenResponse(user=UserOut.model_validate(user))
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+def register(payload: RegisterRequest, response: Response, db: Session = Depends(get_db)):
     """Crée un nouveau compte avec le rôle « Utilisateur » (auto-inscription)."""
     existing = db.query(User).filter(User.email == payload.email.lower()).first()
     if existing:
@@ -95,11 +136,15 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         is_active=True,
     )
     db.add(user)
+    db.flush()
+
+    access_token = create_access_token(subject=user.id, extra_claims={"role": user.role.name})
+    refresh_token = issue_refresh_token(db, user_id=user.id)
+    _set_auth_cookies(response, access_token=access_token, refresh_token=refresh_token)
+
     db.commit()
     db.refresh(user)
-
-    token = create_access_token(subject=user.id, extra_claims={"role": user.role.name})
-    return TokenResponse(access_token=token, user=UserOut.model_validate(user))
+    return TokenResponse(user=UserOut.model_validate(user))
 
 
 @router.get("/me", response_model=UserOut)
@@ -108,12 +153,54 @@ def read_current_user(current_user: User = Depends(get_current_user)):
     return current_user
 
 
+@router.post("/refresh", response_model=Message)
+def refresh(request: Request, response: Response, db: Session = Depends(get_db)):
+    """Renouvelle silencieusement la session à partir du refresh token
+    (correctif #12), sans exiger de mot de passe. Le refresh token est
+    remplacé à chaque appel (rotation) : l'ancien est immédiatement révoqué,
+    limitant la fenêtre d'exploitation d'un refresh token volé."""
+    raw_token = request.cookies.get(REFRESH_TOKEN_COOKIE)
+    if raw_token is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expirée. Merci de vous reconnecter.")
+
+    payload = decode_token(raw_token)
+    if payload is None or payload.get("type") != "refresh" or "jti" not in payload or "sub" not in payload:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expirée. Merci de vous reconnecter.")
+
+    user_id = int(payload["sub"])
+    session_row = get_active_refresh_token(db, jti=payload["jti"], user_id=user_id)
+    if session_row is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expirée. Merci de vous reconnecter.")
+
+    user = db.get(User, user_id)
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expirée. Merci de vous reconnecter.")
+
+    revoke_refresh_token(db, jti=payload["jti"])
+    new_access_token = create_access_token(subject=user.id, extra_claims={"role": user.role.name})
+    new_refresh_token = issue_refresh_token(db, user_id=user.id)
+    _set_auth_cookies(response, access_token=new_access_token, refresh_token=new_refresh_token)
+
+    db.commit()
+    return Message(message="Session renouvelée.")
+
+
 @router.post("/logout", response_model=Message)
-def logout(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def logout(
+    request: Request, response: Response, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
     """
-    Déconnexion côté serveur : journalise l'action. Le token JWT étant sans état,
-    la suppression effective se fait côté client (suppression du token stocké).
+    Déconnexion : révoque réellement le refresh token côté serveur (correctif
+    #12 — auparavant l'action n'était que journalisée, le jeton restait valide
+    jusqu'à expiration naturelle) et efface les cookies côté client.
     """
+    raw_refresh = request.cookies.get(REFRESH_TOKEN_COOKIE)
+    if raw_refresh:
+        refresh_payload = decode_token(raw_refresh)
+        if refresh_payload and refresh_payload.get("type") == "refresh" and "jti" in refresh_payload:
+            revoke_refresh_token(db, jti=refresh_payload["jti"])
+
     log_audit(db, user_id=current_user.id, action="deconnexion", entity_type="user", entity_id=current_user.id)
     db.commit()
+    _clear_auth_cookies(response)
     return Message(message="Déconnexion réussie.")

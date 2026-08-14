@@ -8,7 +8,7 @@ from starlette.requests import Request
 
 from app.main import unhandled_exception_handler
 from app.rate_limit import limiter
-from tests.conftest import auth_headers, create_user
+from tests.conftest import auth_cookies, create_user
 
 
 @pytest.fixture(autouse=True)
@@ -68,7 +68,7 @@ def test_request_is_logged_with_method_path_status(client, db_session, caplog):
 def test_authenticated_request_is_logged_with_user_id(client, db_session, caplog):
     user = create_user(db_session, "logtest4@test.example", "Utilisateur")
     with caplog.at_level(logging.INFO, logger="app.requests"):
-        response = client.get("/api/auth/me", headers=auth_headers(client, "logtest4@test.example"))
+        response = client.get("/api/auth/me", cookies=auth_cookies(client, "logtest4@test.example"))
     assert response.status_code == 200
     assert any(f"user={user.id}" in r.message for r in caplog.records if r.name == "app.requests")
 
@@ -77,7 +77,7 @@ def test_validation_error_is_logged(client, db_session, caplog):
     create_user(db_session, "logtest5@test.example", "Utilisateur")
     with caplog.at_level(logging.WARNING):
         response = client.post(
-            "/api/tickets", json={"title": "x"}, headers=auth_headers(client, "logtest5@test.example")
+            "/api/tickets", json={"title": "x"}, cookies=auth_cookies(client, "logtest5@test.example")
         )
     assert response.status_code == 422
     assert any("Validation invalide" in r.message for r in caplog.records)

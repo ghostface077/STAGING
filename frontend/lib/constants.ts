@@ -111,4 +111,6 @@ export const HISTORY_ACTION_LABELS: Record<string, string> = {
   ajout_piece_jointe: "Pièce jointe ajoutée",
 };
 
-export const TOKEN_STORAGE_KEY = "itsupport_token";
+// Note : TOKEN_STORAGE_KEY (session en localStorage) a été retiré au
+// correctif #12 — la session est désormais portée par des cookies httpOnly
+// posés par le serveur, plus rien à stocker côté client.

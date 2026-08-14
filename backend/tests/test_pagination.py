@@ -4,7 +4,7 @@ from app.models.category import Category
 from app.models.equipment import Equipment
 from app.models.knowledge_base import KB_STATUS_PUBLIE, KnowledgeBaseArticle
 from app.models.priority import Priority
-from tests.conftest import auth_headers, create_user
+from tests.conftest import auth_cookies, create_user
 
 
 def _ticket_payload(db_session, title="Ticket de test"):
@@ -22,7 +22,7 @@ def _create_tickets(client, db_session, requester_email, count, title_prefix="Ti
     return [
         client.post(
             "/api/tickets", json=_ticket_payload(db_session, f"{title_prefix} {i}"),
-            headers=auth_headers(client, requester_email),
+            cookies=auth_cookies(client, requester_email),
         ).json()
         for i in range(count)
     ]
@@ -36,10 +36,10 @@ def test_tickets_page_1_and_page_2_are_distinct(client, db_session):
     _create_tickets(client, db_session, "req-pag1@test.example", 5)
 
     page1 = client.get(
-        "/api/tickets", params={"page": 1, "page_size": 2}, headers=auth_headers(client, "pag1@test.example")
+        "/api/tickets", params={"page": 1, "page_size": 2}, cookies=auth_cookies(client, "pag1@test.example")
     ).json()
     page2 = client.get(
-        "/api/tickets", params={"page": 2, "page_size": 2}, headers=auth_headers(client, "pag1@test.example")
+        "/api/tickets", params={"page": 2, "page_size": 2}, cookies=auth_cookies(client, "pag1@test.example")
     ).json()
 
     assert len(page1["items"]) == 2
@@ -56,7 +56,7 @@ def test_tickets_custom_page_size(client, db_session):
     _create_tickets(client, db_session, "req-pag2@test.example", 7)
 
     body = client.get(
-        "/api/tickets", params={"page": 1, "page_size": 5}, headers=auth_headers(client, "pag2@test.example")
+        "/api/tickets", params={"page": 1, "page_size": 5}, cookies=auth_cookies(client, "pag2@test.example")
     ).json()
     assert len(body["items"]) == 5
     assert body["page_size"] == 5
@@ -66,7 +66,7 @@ def test_tickets_custom_page_size(client, db_session):
 
 def test_tickets_default_page_and_page_size(client, db_session):
     create_user(db_session, "pag3@test.example", "Responsable IT")
-    body = client.get("/api/tickets", headers=auth_headers(client, "pag3@test.example")).json()
+    body = client.get("/api/tickets", cookies=auth_cookies(client, "pag3@test.example")).json()
     assert body["page"] == 1
     assert body["page_size"] == 20
 
@@ -74,14 +74,14 @@ def test_tickets_default_page_and_page_size(client, db_session):
 def test_tickets_page_size_over_max_is_rejected(client, db_session):
     create_user(db_session, "pag4@test.example", "Responsable IT")
     response = client.get(
-        "/api/tickets", params={"page_size": 101}, headers=auth_headers(client, "pag4@test.example")
+        "/api/tickets", params={"page_size": 101}, cookies=auth_cookies(client, "pag4@test.example")
     )
     assert response.status_code == 422
 
 
 def test_tickets_page_below_one_is_rejected(client, db_session):
     create_user(db_session, "pag4b@test.example", "Responsable IT")
-    response = client.get("/api/tickets", params={"page": 0}, headers=auth_headers(client, "pag4b@test.example"))
+    response = client.get("/api/tickets", params={"page": 0}, cookies=auth_cookies(client, "pag4b@test.example"))
     assert response.status_code == 422
 
 
@@ -92,12 +92,12 @@ def test_tickets_filters_combined_with_pagination(client, db_session):
     _create_tickets(client, db_session, "req-pag5@test.example", 3, title_prefix="Recherchable")
     client.post(
         "/api/tickets", json=_ticket_payload(db_session, "Sujet totalement différent"),
-        headers=auth_headers(client, "req-pag5@test.example"),
+        cookies=auth_cookies(client, "req-pag5@test.example"),
     )
 
     body = client.get(
         "/api/tickets", params={"search": "Recherchable", "page": 1, "page_size": 20},
-        headers=auth_headers(client, "pag5@test.example"),
+        cookies=auth_cookies(client, "pag5@test.example"),
     ).json()
     assert body["total"] == 3
     assert all("recherchable" in t["title"].lower() for t in body["items"])
@@ -111,7 +111,7 @@ def test_tickets_pagination_does_not_bypass_role_scoping(client, db_session):
     _create_tickets(client, db_session, "proprio-pag@test.example", 3)
 
     body = client.get(
-        "/api/tickets", params={"page": 1, "page_size": 20}, headers=auth_headers(client, "intrus-pag@test.example")
+        "/api/tickets", params={"page": 1, "page_size": 20}, cookies=auth_cookies(client, "intrus-pag@test.example")
     ).json()
     assert body["total"] == 0
     assert body["items"] == []
@@ -125,7 +125,7 @@ def test_users_pagination_basic(client, db_session):
         create_user(db_session, f"userpag{i}@test.example", "Utilisateur")
 
     response = client.get(
-        "/api/users", params={"page": 1, "page_size": 2}, headers=auth_headers(client, "manager-pag@test.example")
+        "/api/users", params={"page": 1, "page_size": 2}, cookies=auth_cookies(client, "manager-pag@test.example")
     )
     assert response.status_code == 200
     body = response.json()
@@ -138,14 +138,14 @@ def test_users_pagination_basic(client, db_session):
 def test_users_pagination_permissions_unchanged(client, db_session):
     """Non-régression : require_manager toujours appliqué avec la pagination."""
     create_user(db_session, "simple-pag@test.example", "Utilisateur")
-    response = client.get("/api/users", params={"page": 1}, headers=auth_headers(client, "simple-pag@test.example"))
+    response = client.get("/api/users", params={"page": 1}, cookies=auth_cookies(client, "simple-pag@test.example"))
     assert response.status_code == 403
 
 
 def test_users_page_size_over_max_is_rejected(client, db_session):
     create_user(db_session, "manager-pag2@test.example", "Responsable IT")
     response = client.get(
-        "/api/users", params={"page_size": 250}, headers=auth_headers(client, "manager-pag2@test.example")
+        "/api/users", params={"page_size": 250}, cookies=auth_cookies(client, "manager-pag2@test.example")
     )
     assert response.status_code == 422
 
@@ -159,7 +159,7 @@ def test_equipment_pagination_basic(client, db_session):
     db_session.commit()
 
     response = client.get(
-        "/api/equipment", params={"page": 1, "page_size": 2}, headers=auth_headers(client, "eq-manager@test.example")
+        "/api/equipment", params={"page": 1, "page_size": 2}, cookies=auth_cookies(client, "eq-manager@test.example")
     )
     assert response.status_code == 200
     body = response.json()
@@ -175,7 +175,7 @@ def test_equipment_pagination_permissions_unchanged(client, db_session):
     db_session.add(Equipment(asset_number="AST-OTHER-1", type="Ordinateur", brand="HP", model="Z"))
     db_session.commit()
 
-    response = client.get("/api/equipment", headers=auth_headers(client, "eq-user@test.example"))
+    response = client.get("/api/equipment", cookies=auth_cookies(client, "eq-user@test.example"))
     body = response.json()
     assert body["total"] == 1
     assert body["items"][0]["asset_number"] == "AST-MINE-1"
@@ -190,7 +190,7 @@ def test_knowledge_base_pagination_basic(client, db_session):
     db_session.commit()
 
     response = client.get(
-        "/api/knowledge-base", params={"page": 1, "page_size": 2}, headers=auth_headers(client, "kb-user@test.example")
+        "/api/knowledge-base", params={"page": 1, "page_size": 2}, cookies=auth_cookies(client, "kb-user@test.example")
     )
     assert response.status_code == 200
     body = response.json()
@@ -206,7 +206,7 @@ def test_knowledge_base_pagination_permissions_unchanged(client, db_session):
     db_session.add(KnowledgeBaseArticle(title="Article brouillon", content="Invisible.", status="Brouillon"))
     db_session.commit()
 
-    response = client.get("/api/knowledge-base", headers=auth_headers(client, "kb-user2@test.example"))
+    response = client.get("/api/knowledge-base", cookies=auth_cookies(client, "kb-user2@test.example"))
     body = response.json()
     assert body["total"] == 1
     assert body["items"][0]["title"] == "Article publié"

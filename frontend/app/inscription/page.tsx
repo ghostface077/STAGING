@@ -13,7 +13,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authApi, getErrorMessage } from "@/lib/api";
-import { TOKEN_STORAGE_KEY } from "@/lib/constants";
 
 const registerSchema = z.object({
   first_name: z.string().min(1, "Le prénom est obligatoire."),
@@ -38,8 +37,9 @@ export default function RegisterPage() {
     setServerError(null);
     setIsSubmitting(true);
     try {
-      const response = await authApi.register(values);
-      window.localStorage.setItem(TOKEN_STORAGE_KEY, response.data.access_token);
+      await authApi.register(values);
+      // Correctif #12 : la session est posée en cookie httpOnly par le serveur,
+      // rien à stocker côté client.
       window.location.href = "/dashboard";
     } catch (error) {
       setServerError(getErrorMessage(error));

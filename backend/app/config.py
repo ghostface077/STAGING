@@ -24,7 +24,11 @@ class Settings(BaseSettings):
     # le démarrage plutôt que de faire tourner l'application avec un secret connu.
     secret_key: str
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60
+    # Correctif #12 : access token courte durée (cookie httpOnly), renouvelé de
+    # façon transparente via le refresh token (longue durée, révocable — voir
+    # app/models/refresh_token.py). Réduit la fenêtre d'exposition d'un access
+    # token compromis, sans dégrader l'expérience (renouvellement automatique).
+    access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
 
     # Application
