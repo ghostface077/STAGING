@@ -52,6 +52,11 @@
     --ring: 245 75% 57%;
 
     --radius: 0.625rem;
+
+    /* Ombres teintées (indigo) et durées de mouvement — refonte premium.
+       Une ombre teintée plutôt que noire pure est ce qui distingue une carte
+       "SaaS premium" (Linear, Vercel) d'une carte Bootstrap générique. */
+    --shadow-color: 245 40% 30%;
   }
 
   @media (prefers-color-scheme: dark) {
@@ -95,6 +100,8 @@
       --border: 240 18% 20%;
       --input: 240 18% 20%;
       --ring: 245 85% 68%;
+
+      --shadow-color: 245 60% 4%;
     }
   }
 
@@ -138,6 +145,8 @@
     --border: 240 18% 20%;
     --input: 240 18% 20%;
     --ring: 245 85% 68%;
+
+    --shadow-color: 245 60% 4%;
   }
 
   * {

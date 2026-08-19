@@ -69,6 +69,16 @@ const config: Config = {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      boxShadow: {
+        // Ombres teintées (indigo/violet, --shadow-color) plutôt que noires
+        // pures — refonte premium, cf. app/globals.css.
+        "premium-sm": "0 1px 2px hsl(var(--shadow-color) / 0.06)",
+        "premium-md": "0 4px 16px hsl(var(--shadow-color) / 0.10), 0 1px 2px hsl(var(--shadow-color) / 0.06)",
+        "premium-lg": "0 12px 32px hsl(var(--shadow-color) / 0.14), 0 2px 6px hsl(var(--shadow-color) / 0.08)",
+      },
+      transitionTimingFunction: {
+        premium: "cubic-bezier(0.16, 1, 0.3, 1)",
+      },
       keyframes: {
         "accordion-down": { from: { height: "0" }, to: { height: "var(--radix-accordion-content-height)" } },
         "accordion-up": { from: { height: "var(--radix-accordion-content-height)" }, to: { height: "0" } },
