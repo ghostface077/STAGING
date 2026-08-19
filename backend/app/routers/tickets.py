@@ -144,9 +144,10 @@ def _apply_ticket_filters(
         if unassigned:
             query = query.filter(Ticket.technician_id.is_(None))
         else:
-            query = query.filter(
-                or_(Ticket.technician_id == current_user.id, Ticket.technician_id.is_(None))
-            )
+            # Vue par défaut d'un technicien : uniquement ses tickets assignés.
+            # Les tickets non assignés restent visibles via unassigned=true
+            # (page « Non assignés »), séparément de sa liste personnelle.
+            query = query.filter(Ticket.technician_id == current_user.id)
     # Responsable IT et Administrateur voient tous les tickets
 
     if status_id:

@@ -31,7 +31,12 @@ export const PORTAL_NAV_GROUPS: NavGroup[] = [
     label: "Principal",
     items: [
       { label: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard },
-      { label: "Tous les tickets", href: "/tickets", icon: Ticket },
+      {
+        label: "Tous les tickets",
+        href: "/tickets",
+        icon: Ticket,
+        roles: ["Responsable IT", "Administrateur"],
+      },
       { label: "Mes tickets", href: "/mes-tickets", icon: ListChecks },
       {
         label: "Non assignés",

@@ -48,11 +48,14 @@ export default function TicketDetailPage() {
   const canWriteInternal = role === "Technicien" || role === "Responsable IT" || role === "Administrateur";
   const isRequester = ticket.requester.id === user?.id;
   const canRate = isRequester && (ticket.status.name === "Résolu" || ticket.status.name === "Fermé");
+  const canSeeAllTickets = role === "Responsable IT" || role === "Administrateur";
+  const backHref = canSeeAllTickets ? "/tickets" : "/mes-tickets";
+  const backLabel = canSeeAllTickets ? "Tous les tickets" : "Mes tickets";
 
   return (
     <div className="space-y-6">
-      <Link href="/tickets" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
-        <ArrowLeft className="h-3.5 w-3.5" /> Tous les tickets
+      <Link href={backHref} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
+        <ArrowLeft className="h-3.5 w-3.5" /> {backLabel}
       </Link>
 
       <Card>

@@ -99,3 +99,37 @@ def test_only_user_role_can_create_ticket(client, db_session):
     for email in ("technicien5@test.example", "manager5@test.example", "admin5@test.example"):
         response = client.post("/api/tickets", json=payload, cookies=auth_cookies(client, email))
         assert response.status_code == 403, f"{email} n'aurait pas dû pouvoir créer un ticket"
+
+
+def test_technician_default_list_excludes_unassigned_tickets(client, db_session):
+    """La vue par défaut d'un technicien (sans filtre) ne doit contenir que ses
+    propres tickets assignés — les tickets non assignés restent réservés à la
+    vue dédiée `unassigned=true` (page « Non assignés »), pas mélangés ici."""
+    create_user(db_session, "demandeur6@test.example", "Utilisateur")
+    technicien = create_user(db_session, "technicien6@test.example", "Technicien")
+    autre_technicien = create_user(db_session, "technicien7@test.example", "Technicien")
+
+    payload = _ticket_payload(db_session)
+    demandeur_cookies = auth_cookies(client, "demandeur6@test.example")
+
+    ticket_non_assigne = client.post("/api/tickets", json=payload, cookies=demandeur_cookies).json()
+    ticket_assigne = client.post("/api/tickets", json=payload, cookies=demandeur_cookies).json()
+    ticket_autre_technicien = client.post("/api/tickets", json=payload, cookies=demandeur_cookies).json()
+
+    tech_cookies = auth_cookies(client, "technicien6@test.example")
+    client.post(f"/api/tickets/{ticket_assigne['id']}/assign", json={"technician_id": technicien.id}, cookies=tech_cookies)
+    client.post(
+        f"/api/tickets/{ticket_autre_technicien['id']}/assign",
+        json={"technician_id": autre_technicien.id},
+        cookies=auth_cookies(client, "technicien7@test.example"),
+    )
+
+    default_list = client.get("/api/tickets", cookies=tech_cookies).json()
+    default_ids = {item["id"] for item in default_list["items"]}
+    assert default_ids == {ticket_assigne["id"]}
+    assert ticket_non_assigne["id"] not in default_ids
+    assert ticket_autre_technicien["id"] not in default_ids
+
+    unassigned_list = client.get("/api/tickets", params={"unassigned": True}, cookies=tech_cookies).json()
+    unassigned_ids = {item["id"] for item in unassigned_list["items"]}
+    assert unassigned_ids == {ticket_non_assigne["id"]}
