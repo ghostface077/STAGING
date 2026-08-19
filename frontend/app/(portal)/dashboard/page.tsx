@@ -23,11 +23,11 @@ export default function DashboardPage() {
     queryKey: ["dashboard", "statistics"],
     queryFn: () => dashboardApi.statistics().then((res) => res.data),
   });
-  const { data: byStatus } = useQuery({
+  const { data: byStatus, isLoading: isLoadingByStatus } = useQuery({
     queryKey: ["dashboard", "by-status"],
     queryFn: () => dashboardApi.byStatus().then((res) => res.data),
   });
-  const { data: byPriority } = useQuery({
+  const { data: byPriority, isLoading: isLoadingByPriority } = useQuery({
     queryKey: ["dashboard", "by-priority"],
     queryFn: () => dashboardApi.byPriority().then((res) => res.data),
   });
@@ -75,26 +75,26 @@ export default function DashboardPage() {
           )}
 
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <Card>
+            <Card className="shadow-premium-sm transition-shadow duration-200 ease-premium hover:shadow-premium-md">
               <CardHeader>
                 <CardTitle className="text-base">Tickets par statut</CardTitle>
               </CardHeader>
               <CardContent>
-                <StatusBarChart data={byStatus ?? []} />
+                {isLoadingByStatus ? <Skeleton className="h-[260px]" /> : <StatusBarChart data={byStatus ?? []} />}
               </CardContent>
             </Card>
-            <Card>
+            <Card className="shadow-premium-sm transition-shadow duration-200 ease-premium hover:shadow-premium-md">
               <CardHeader>
                 <CardTitle className="text-base">Tickets par priorité</CardTitle>
               </CardHeader>
               <CardContent>
-                <PriorityPieChart data={byPriority ?? []} />
+                {isLoadingByPriority ? <Skeleton className="h-[260px]" /> : <PriorityPieChart data={byPriority ?? []} />}
               </CardContent>
             </Card>
           </div>
 
           {isStaff && stats && (
-            <Card>
+            <Card className="shadow-premium-sm transition-shadow duration-200 ease-premium hover:shadow-premium-md">
               <CardHeader>
                 <CardTitle className="text-base">Performance du support</CardTitle>
               </CardHeader>

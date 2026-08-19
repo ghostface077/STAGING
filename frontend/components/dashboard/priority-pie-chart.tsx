@@ -4,11 +4,13 @@ import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recha
 
 import type { CountByLabel } from "@/lib/types";
 
+// Miroir de PRIORITY_DOT_COLORS (lib/constants.ts) — une priorité a la même
+// couleur ici que sur ses badges.
 const PRIORITY_HEX: Record<string, string> = {
-  "Basse": "#94a3b8",
-  "Normale": "#2a78d6",
-  "Haute": "#f59e0b",
-  "Critique": "#e34948",
+  "Basse": "hsl(var(--muted-foreground))",
+  "Normale": "hsl(var(--info))",
+  "Haute": "hsl(var(--warning))",
+  "Critique": "hsl(var(--destructive))",
 };
 
 export function PriorityPieChart({ data }: { data: CountByLabel[] }) {
@@ -19,13 +21,31 @@ export function PriorityPieChart({ data }: { data: CountByLabel[] }) {
   return (
     <ResponsiveContainer width="100%" height={260}>
       <PieChart>
-        <Pie data={data} dataKey="count" nameKey="label" innerRadius={55} outerRadius={90} paddingAngle={2} strokeWidth={2} stroke="hsl(var(--card))">
+        <Pie
+          data={data}
+          dataKey="count"
+          nameKey="label"
+          innerRadius={55}
+          outerRadius={90}
+          paddingAngle={2}
+          strokeWidth={2}
+          stroke="hsl(var(--card))"
+          animationDuration={500}
+          animationEasing="ease-out"
+        >
           {data.map((entry) => (
-            <Cell key={entry.label} fill={PRIORITY_HEX[entry.label] ?? "#94a3b8"} />
+            <Cell key={entry.label} fill={PRIORITY_HEX[entry.label] ?? "hsl(var(--muted-foreground))"} />
           ))}
         </Pie>
         <Tooltip
-          contentStyle={{ borderRadius: 8, borderColor: "hsl(var(--border))", fontSize: 12, background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
+          contentStyle={{
+            borderRadius: 8,
+            borderColor: "hsl(var(--border))",
+            fontSize: 12,
+            background: "hsl(var(--popover))",
+            color: "hsl(var(--popover-foreground))",
+            boxShadow: "0 4px 16px hsl(var(--shadow-color) / 0.10), 0 1px 2px hsl(var(--shadow-color) / 0.06)",
+          }}
           formatter={(value, label) => [`${value} ticket(s)`, label]}
         />
         <Legend
