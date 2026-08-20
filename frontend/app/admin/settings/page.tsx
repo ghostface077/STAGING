@@ -35,7 +35,7 @@ export default function AdminSettingsPage() {
         <StatCard label="Tickets" value={stats?.total_tickets ?? "—"} icon={Ticket} />
       </div>
 
-      <Card className="mt-6">
+      <Card className="mt-6 shadow-premium-sm">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2"><Server className="h-4 w-4" /> Informations système</CardTitle>
         </CardHeader>
@@ -46,7 +46,7 @@ export default function AdminSettingsPage() {
         </CardContent>
       </Card>
 
-      <Card className="mt-6">
+      <Card className="mt-6 shadow-premium-sm">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2"><Database className="h-4 w-4" /> Gestion des données de référence</CardTitle>
         </CardHeader>

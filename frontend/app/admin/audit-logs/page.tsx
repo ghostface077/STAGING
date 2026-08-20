@@ -30,7 +30,7 @@ export default function AdminAuditLogsPage() {
         <Input value={entityType} onChange={(event) => setEntityType(event.target.value)} placeholder="Filtrer par type d'entité (ex : ticket, user)…" />
       </div>
 
-      <Card>
+      <Card className="shadow-premium-sm">
         {isLoading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
         ) : !logs || logs.length === 0 ? (

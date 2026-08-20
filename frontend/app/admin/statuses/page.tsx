@@ -65,7 +65,7 @@ export default function AdminStatusesPage() {
   return (
     <div>
       <PageHeader title="Statuts" description="Statuts du cycle de vie des tickets." actions={<Button onClick={() => setIsOpen(true)}><Plus /> Nouveau statut</Button>} />
-      <Card>
+      <Card className="shadow-premium-sm">
         {isLoading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
         ) : !statuses || statuses.length === 0 ? (

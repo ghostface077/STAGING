@@ -2,17 +2,30 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Clock, Gauge, ShieldAlert, Star, Ticket, UserCog } from "lucide-react";
+import dynamic from "next/dynamic";
 
 import { AdminRecentActivity } from "@/components/dashboard/admin-recent-activity";
 import { PageHeader } from "@/components/common/page-header";
 import { StatCard } from "@/components/common/stat-card";
-import { CategoryBarChart } from "@/components/dashboard/category-bar-chart";
-import { PriorityPieChart } from "@/components/dashboard/priority-pie-chart";
-import { StatusBarChart } from "@/components/dashboard/status-bar-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { dashboardApi } from "@/lib/api";
+
+// Recharts chargé à la demande, hors du bundle initial (même traitement que le tableau de bord portail).
+const ChartSkeleton = () => <Skeleton className="h-[260px]" />;
+const CategoryBarChart = dynamic(() => import("@/components/dashboard/category-bar-chart").then((mod) => mod.CategoryBarChart), {
+  ssr: false,
+  loading: ChartSkeleton,
+});
+const PriorityPieChart = dynamic(() => import("@/components/dashboard/priority-pie-chart").then((mod) => mod.PriorityPieChart), {
+  ssr: false,
+  loading: ChartSkeleton,
+});
+const StatusBarChart = dynamic(() => import("@/components/dashboard/status-bar-chart").then((mod) => mod.StatusBarChart), {
+  ssr: false,
+  loading: ChartSkeleton,
+});
 
 export default function AdminDashboardPage() {
   const { data: stats, isLoading } = useQuery({
@@ -48,23 +61,23 @@ export default function AdminDashboardPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <Card>
+            <Card className="shadow-premium-sm">
               <CardHeader><CardTitle className="text-base">Tickets par statut</CardTitle></CardHeader>
               <CardContent><StatusBarChart data={byStatus ?? []} /></CardContent>
             </Card>
-            <Card>
+            <Card className="shadow-premium-sm">
               <CardHeader><CardTitle className="text-base">Tickets par priorité</CardTitle></CardHeader>
               <CardContent><PriorityPieChart data={byPriority ?? []} /></CardContent>
             </Card>
           </div>
 
-          <Card>
+          <Card className="shadow-premium-sm">
             <CardHeader><CardTitle className="text-base">Tickets par catégorie</CardTitle></CardHeader>
             <CardContent><CategoryBarChart data={byCategory ?? []} /></CardContent>
           </Card>
 
           {sla && (
-            <Card>
+            <Card className="shadow-premium-sm">
               <CardHeader><CardTitle className="text-base">Respect des SLA</CardTitle></CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -77,7 +90,7 @@ export default function AdminDashboardPage() {
             </Card>
           )}
 
-          <Card>
+          <Card className="shadow-premium-sm">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2"><UserCog className="h-4 w-4" /> Performance par technicien</CardTitle>
             </CardHeader>
@@ -109,13 +122,13 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="space-y-6">
-          <Card>
+          <Card className="shadow-premium-sm">
             <CardHeader><CardTitle className="text-base">Activité système récente</CardTitle></CardHeader>
             <CardContent><AdminRecentActivity /></CardContent>
           </Card>
 
           {stats && (
-            <Card>
+            <Card className="shadow-premium-sm">
               <CardHeader><CardTitle className="text-base">Synthèse</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <StatCard label="Temps moyen 1ère réponse" value={stats.temps_moyen_premiere_reponse_minutes !== null ? `${Math.round(stats.temps_moyen_premiere_reponse_minutes)} min` : "—"} icon={Clock} />

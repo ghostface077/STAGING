@@ -138,7 +138,7 @@ export default function AdminUsersPage() {
         />
       </div>
 
-      <Card>
+      <Card className="shadow-premium-sm">
         {isLoading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
         ) : !users || users.length === 0 ? (

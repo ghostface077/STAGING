@@ -64,7 +64,7 @@ export default function AdminRolesPage() {
   return (
     <div>
       <PageHeader title="Rôles" description="Rôles applicatifs disponibles pour les utilisateurs." actions={<Button onClick={() => setIsOpen(true)}><Plus /> Nouveau rôle</Button>} />
-      <Card>
+      <Card className="shadow-premium-sm">
         {isLoading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
         ) : !roles || roles.length === 0 ? (

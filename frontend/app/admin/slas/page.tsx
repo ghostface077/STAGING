@@ -82,7 +82,7 @@ export default function AdminSlasPage() {
   return (
     <div>
       <PageHeader title="SLA" description="Délais de première réponse et de résolution par priorité." actions={<Button onClick={() => setIsOpen(true)}><Plus /> Nouveau SLA</Button>} />
-      <Card>
+      <Card className="shadow-premium-sm">
         {isLoading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
         ) : !slas || slas.length === 0 ? (

@@ -67,7 +67,7 @@ export default function AdminPrioritiesPage() {
   return (
     <div>
       <PageHeader title="Priorités" description="Niveaux de priorité utilisés pour trier les tickets." actions={<Button onClick={() => setIsOpen(true)}><Plus /> Nouvelle priorité</Button>} />
-      <Card>
+      <Card className="shadow-premium-sm">
         {isLoading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
         ) : !priorities || priorities.length === 0 ? (

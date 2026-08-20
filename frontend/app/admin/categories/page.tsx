@@ -77,11 +77,14 @@ export default function AdminCategoriesPage() {
       ) : (
         <div className="space-y-3">
           {categories.map((category) => (
-            <Card key={category.id}>
+            <Card key={category.id} className="shadow-premium-sm transition-shadow duration-200 ease-premium hover:shadow-premium-md">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <p className="font-semibold">{category.name}</p>
-                  <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setToDelete(category.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setToDelete(category.id)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span className="sr-only">Supprimer la catégorie {category.name}</span>
+                  </Button>
                 </div>
                 {category.description && <p className="text-sm text-muted-foreground">{category.description}</p>}
                 {category.children.length > 0 && (
@@ -89,7 +92,13 @@ export default function AdminCategoriesPage() {
                     {category.children.map((child) => (
                       <Badge key={child.id} variant="secondary" className="gap-1.5">
                         {child.name}
-                        <button onClick={() => setToDelete(child.id)} className="text-muted-foreground hover:text-destructive">×</button>
+                        <button
+                          onClick={() => setToDelete(child.id)}
+                          className="rounded text-muted-foreground hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                          aria-label={`Supprimer la sous-catégorie ${child.name}`}
+                        >
+                          ×
+                        </button>
                       </Badge>
                     ))}
                   </div>

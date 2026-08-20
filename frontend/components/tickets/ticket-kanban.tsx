@@ -85,6 +85,13 @@ export function TicketKanban({ tickets, isLoading }: TicketKanbanProps) {
 
   return (
     <div className="flex gap-3 overflow-x-auto p-4">
+      {/* Le glisser-déposer natif n'est pas opérable au clavier : la même action (changer le
+          statut) reste accessible sans souris via le menu de la fiche ticket (StatusDialog),
+          qui est un vrai formulaire Radix — c'est l'alternative clavier de ce Kanban. */}
+      <p className="sr-only" role="note">
+        Vue Kanban glisser-déposer, non opérable au clavier. Pour changer le statut d&apos;un ticket au clavier, ouvrez sa
+        fiche et utilisez le menu « Changer le statut ».
+      </p>
       {columns.map(([statusName, columnTickets]) => {
         const isManagedElsewhere = MANAGED_ELSEWHERE_STATUSES.has(statusName);
         const isValidDropTarget = draggedTicket != null && canTransition(draggedTicket.status.name, statusName);
@@ -93,6 +100,7 @@ export function TicketKanban({ tickets, isLoading }: TicketKanbanProps) {
         return (
           <div
             key={statusName}
+            aria-label={`Colonne ${statusName}, ${columnTickets.length} ticket${columnTickets.length > 1 ? "s" : ""}`}
             onDragOver={(event) => {
               if (!isValidDropTarget) return;
               event.preventDefault();

@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Kanban, LayoutGrid, ListFilter, PlusCircle, Rows3, Search, SlidersHorizontal, X } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -9,17 +10,29 @@ import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/common/page-header";
 import { Pagination } from "@/components/ui/pagination";
 import { TicketCardGrid } from "@/components/tickets/ticket-card";
-import { TicketKanban } from "@/components/tickets/ticket-kanban";
 import { TicketTable } from "@/components/tickets/ticket-table";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useCategories, usePriorities, useStatuses } from "@/hooks/use-reference-data";
 import { ticketsApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+
+// Chargé à la demande : la logique de glisser-déposer ne sert que si l'utilisateur
+// choisit la vue Kanban (pas la vue par défaut) - inutile de l'envoyer au chargement
+// initial de la page.
+const TicketKanban = dynamic(() => import("@/components/tickets/ticket-kanban").then((mod) => mod.TicketKanban), {
+  ssr: false,
+  loading: () => (
+    <div className="flex gap-3 overflow-x-auto p-4">
+      {Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-96 w-72 shrink-0" />)}
+    </div>
+  ),
+});
 
 const PAGE_SIZE = 15;
 const WIDE_PAGE_SIZE = 100; // vues Cartes/Kanban : pas de pagination dédiée (même convention que Mes tickets / Non assignés)

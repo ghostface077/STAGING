@@ -62,7 +62,7 @@ export default function AdminLoginPage() {
           <p className="text-sm text-slate-400">Accès réservé aux administrateurs de la plateforme.</p>
         </div>
 
-        <Card>
+        <Card className="shadow-premium-md">
           <CardHeader>
             <CardTitle>Connexion administrateur</CardTitle>
             <CardDescription>Saisissez vos identifiants administrateur.</CardDescription>

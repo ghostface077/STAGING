@@ -64,7 +64,7 @@ export default function AdminDepartmentsPage() {
   return (
     <div>
       <PageHeader title="Services" description="Services / départements de l'organisation." actions={<Button onClick={() => setIsOpen(true)}><Plus /> Nouveau service</Button>} />
-      <Card>
+      <Card className="shadow-premium-sm">
         {isLoading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
         ) : !departments || departments.length === 0 ? (

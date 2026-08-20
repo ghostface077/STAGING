@@ -2,10 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Clock, Gauge, ListTodo, ShieldAlert, Star, Ticket } from "lucide-react";
+import dynamic from "next/dynamic";
 
-import { PriorityPieChart } from "@/components/dashboard/priority-pie-chart";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
-import { StatusBarChart } from "@/components/dashboard/status-bar-chart";
 import { StatCard } from "@/components/common/stat-card";
 import { PageHeader } from "@/components/common/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +12,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth-context";
 import { dashboardApi } from "@/lib/api";
 import { formatDurationMinutes } from "@/lib/utils";
+
+// Recharts est une dépendance lourde et ne sait pas se rendre côté serveur :
+// chargée à la demande dans son propre chunk plutôt que dans le bundle initial.
+const ChartSkeleton = () => <Skeleton className="h-[260px]" />;
+const StatusBarChart = dynamic(() => import("@/components/dashboard/status-bar-chart").then((mod) => mod.StatusBarChart), {
+  ssr: false,
+  loading: ChartSkeleton,
+});
+const PriorityPieChart = dynamic(() => import("@/components/dashboard/priority-pie-chart").then((mod) => mod.PriorityPieChart), {
+  ssr: false,
+  loading: ChartSkeleton,
+});
 
 export default function DashboardPage() {
   const { user } = useAuth();

@@ -111,11 +111,13 @@ export default function KnowledgeBasePage() {
       </div>
 
       {categories && categories.length > 0 && (
-        <div className="mb-5 flex flex-wrap gap-2">
+        <div className="mb-5 flex flex-wrap gap-2" role="group" aria-label="Filtrer par catégorie">
           <button
+            type="button"
+            aria-pressed={categoryId === null}
             onClick={() => { setCategoryId(null); setPage(1); }}
             className={cn(
-              "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              "rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
               categoryId === null ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:text-foreground",
             )}
           >
@@ -124,9 +126,11 @@ export default function KnowledgeBasePage() {
           {categories.map((category) => (
             <button
               key={category.id}
+              type="button"
+              aria-pressed={categoryId === category.id}
               onClick={() => { setCategoryId(category.id); setPage(1); }}
               className={cn(
-                "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                "rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                 categoryId === category.id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:text-foreground",
               )}
             >
