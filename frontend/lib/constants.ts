@@ -75,6 +75,15 @@ export const SLA_STATE_COLORS: Record<SLAState, string> = {
   aucun: "bg-muted-foreground/40",
 };
 
+// Mêmes teintes que SLA_STATE_COLORS, en valeurs "stroke" CSS exploitables par SVG (jauge circulaire).
+export const SLA_STATE_STROKE_COLORS: Record<SLAState, string> = {
+  normal: "hsl(var(--success))",
+  attention: "hsl(var(--warning))",
+  critique: "#f97316",
+  depasse: "hsl(var(--destructive))",
+  aucun: "hsl(var(--muted-foreground) / 0.4)",
+};
+
 export const SLA_STATE_TEXT_COLORS: Record<SLAState, string> = {
   normal: "text-success",
   attention: "text-warning",

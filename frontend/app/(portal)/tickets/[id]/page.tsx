@@ -9,7 +9,7 @@ import { CommentThread } from "@/components/tickets/comment-thread";
 import { HistoryTimeline } from "@/components/tickets/history-timeline";
 import { PriorityBadge } from "@/components/tickets/priority-badge";
 import { SatisfactionWidget } from "@/components/tickets/satisfaction-widget";
-import { SlaIndicator } from "@/components/tickets/sla-indicator";
+import { SlaGauge } from "@/components/tickets/sla-gauge";
 import { StatusBadge } from "@/components/tickets/status-badge";
 import { TicketActions } from "@/components/tickets/ticket-actions";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -58,7 +58,7 @@ export default function TicketDetailPage() {
         <ArrowLeft className="h-3.5 w-3.5" /> {backLabel}
       </Link>
 
-      <Card>
+      <Card className="shadow-premium-sm">
         <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <p className="font-mono text-xs font-medium text-muted-foreground">{ticket.reference}</p>
@@ -88,7 +88,7 @@ export default function TicketDetailPage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <Card>
+          <Card className="shadow-premium-sm">
             <CardHeader>
               <CardTitle className="text-base">Description</CardTitle>
             </CardHeader>
@@ -98,7 +98,7 @@ export default function TicketDetailPage() {
           </Card>
 
           {ticket.solution && (
-            <Card className="border-success/40 bg-success/5">
+            <Card className="border-success/40 bg-success/5 shadow-premium-sm">
               <CardHeader>
                 <CardTitle className="text-base text-success">Solution apportée</CardTitle>
               </CardHeader>
@@ -108,7 +108,7 @@ export default function TicketDetailPage() {
             </Card>
           )}
 
-          <Card>
+          <Card className="shadow-premium-sm">
             <CardContent className="p-4">
               <Tabs defaultValue="conversation">
                 <TabsList>
@@ -129,16 +129,16 @@ export default function TicketDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <Card>
+          <Card className="shadow-premium-sm">
             <CardHeader>
               <CardTitle className="text-base">SLA</CardTitle>
             </CardHeader>
             <CardContent>
-              <SlaIndicator progress={ticket.sla_progress} />
+              <SlaGauge progress={ticket.sla_progress} />
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="shadow-premium-sm">
             <CardHeader>
               <CardTitle className="text-base">Informations</CardTitle>
             </CardHeader>
