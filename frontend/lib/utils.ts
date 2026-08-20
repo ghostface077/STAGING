@@ -38,6 +38,19 @@ export function formatRelativeTime(value: string): string {
   return rtf.format(diffDays, "day");
 }
 
+/** Regroupe une date sous une étiquette relative grossière (pour les listes chronologiques : notifications…). */
+export function dayBucketLabel(value: string): "Aujourd’hui" | "Hier" | "Cette semaine" | "Plus ancien" {
+  const date = new Date(value);
+  const now = new Date();
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
+
+  if (diffDays <= 0) return "Aujourd’hui";
+  if (diffDays === 1) return "Hier";
+  if (diffDays <= 7) return "Cette semaine";
+  return "Plus ancien";
+}
+
 /** Formate une taille de fichier en octets vers une unité lisible (Ko, Mo...). */
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} o`;

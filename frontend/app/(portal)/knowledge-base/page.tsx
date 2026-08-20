@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 import { BookOpen, Eye, Loader2, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -13,6 +14,7 @@ import { PageHeader } from "@/components/common/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +42,7 @@ export default function KnowledgeBasePage() {
   const { toast } = useToast();
   const { data: categories } = useCategories();
   const [search, setSearch] = useState("");
+  const [categoryId, setCategoryId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -47,9 +50,11 @@ export default function KnowledgeBasePage() {
   const isStaff = user?.role?.name && ["Technicien", "Responsable IT", "Administrateur"].includes(user.role.name);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["knowledge-base", { search, page }],
+    queryKey: ["knowledge-base", { search, categoryId, page }],
     queryFn: () =>
-      knowledgeBaseApi.list({ search: search || undefined, page, page_size: PAGE_SIZE }).then((res) => res.data),
+      knowledgeBaseApi
+        .list({ search: search || undefined, category_id: categoryId ?? undefined, page, page_size: PAGE_SIZE })
+        .then((res) => res.data),
     placeholderData: (previous) => previous,
   });
   const articles = data?.items;
@@ -105,6 +110,32 @@ export default function KnowledgeBasePage() {
         />
       </div>
 
+      {categories && categories.length > 0 && (
+        <div className="mb-5 flex flex-wrap gap-2">
+          <button
+            onClick={() => { setCategoryId(null); setPage(1); }}
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              categoryId === null ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:text-foreground",
+            )}
+          >
+            Toutes les catégories
+          </button>
+          {categories.map((category) => (
+            <button
+              key={category.id}
+              onClick={() => { setCategoryId(category.id); setPage(1); }}
+              className={cn(
+                "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                categoryId === category.id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {category.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {isLoading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-32" />)}
@@ -113,20 +144,28 @@ export default function KnowledgeBasePage() {
         <EmptyState icon={BookOpen} title="Aucun article trouvé" description="Aucun article ne correspond à votre recherche." />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {articles.map((article) => (
-            <Link key={article.id} href={`/knowledge-base/${article.id}`}>
-              <Card className="h-full transition-shadow hover:shadow-md">
-                <CardContent className="flex h-full flex-col p-4">
-                  {article.category && <Badge variant="secondary" className="mb-2 w-fit">{article.category.name}</Badge>}
-                  <p className="font-medium leading-snug">{article.title}</p>
-                  <p className="mt-1 line-clamp-3 flex-1 text-sm text-muted-foreground">{article.content}</p>
-                  <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1"><Eye className="h-3.5 w-3.5" /> {article.views} vues</span>
-                    {article.status !== "Publié" && <Badge variant="outline">{article.status}</Badge>}
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
+          {articles.map((article, index) => (
+            <motion.div
+              key={article.id}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.18, delay: Math.min(index, 8) * 0.03, ease: [0.16, 1, 0.3, 1] }}
+              whileHover={{ y: -2 }}
+            >
+              <Link href={`/knowledge-base/${article.id}`}>
+                <Card className="h-full shadow-premium-sm transition-shadow duration-200 ease-premium hover:shadow-premium-md">
+                  <CardContent className="flex h-full flex-col p-4">
+                    {article.category && <Badge variant="secondary" className="mb-2 w-fit">{article.category.name}</Badge>}
+                    <p className="font-medium leading-snug">{article.title}</p>
+                    <p className="mt-1 line-clamp-3 flex-1 text-sm text-muted-foreground">{article.content}</p>
+                    <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1"><Eye className="h-3.5 w-3.5" /> {article.views} vues</span>
+                      {article.status !== "Publié" && <Badge variant="outline">{article.status}</Badge>}
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            </motion.div>
           ))}
         </div>
       )}

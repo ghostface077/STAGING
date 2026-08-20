@@ -181,4 +181,28 @@
       linear-gradient(90deg, hsl(var(--foreground) / 0.04) 1px, transparent 1px);
     background-size: 28px 28px;
   }
+
+  /* Fond ambiant du panneau de marque sur l'écran de connexion : grille fine +
+     deux halos qui dérivent lentement. Purement décoratif, désactivé pour les
+     utilisateurs qui préfèrent moins de mouvement. */
+  .login-ambient {
+    background-image:
+      radial-gradient(circle at 15% 20%, hsl(var(--info) / 0.35), transparent 45%),
+      radial-gradient(circle at 85% 80%, hsl(var(--brand) / 0.25), transparent 45%),
+      linear-gradient(hsl(0 0% 100% / 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(0 0% 100% / 0.06) 1px, transparent 1px);
+    background-size: 140% 140%, 140% 140%, 32px 32px, 32px 32px;
+    background-position: 0% 0%, 100% 100%, center, center;
+    animation: login-ambient-drift 24s ease-in-out infinite alternate;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .login-ambient {
+      animation: none;
+    }
+  }
+  @keyframes login-ambient-drift {
+    to {
+      background-position: 12% 8%, 88% 92%, center, center;
+    }
+  }
 }
