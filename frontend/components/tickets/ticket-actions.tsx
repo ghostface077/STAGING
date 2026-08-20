@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { usePriorities, useStatuses, useTeams, useTechnicians } from "@/hooks/use-reference-data";
 import { getErrorMessage, ticketsApi } from "@/lib/api";
+import { ALLOWED_STATUS_TRANSITIONS, MANAGED_ELSEWHERE_STATUSES as CLOSED } from "@/lib/ticket-transitions";
 import type { Ticket } from "@/lib/types";
 
 interface TicketActionsProps {
@@ -21,25 +22,8 @@ interface TicketActionsProps {
   role: string;
 }
 
-const CLOSED = new Set(["Résolu", "Fermé"]);
 const isManager = (role: string) => role === "Responsable IT" || role === "Administrateur";
 const isStaff = (role: string) => role === "Technicien" || isManager(role);
-
-/**
- * Miroir de app/services/ticket_state_machine.py (correctif #13) : Résolu et
- * Fermé ne figurent jamais comme cible ici, ils restent exclusivement
- * accessibles via les actions dédiées « Résoudre »/« Fermer »/« Réouvrir »,
- * seules à synchroniser correctement resolved_at/closed_at. Ce filtrage
- * n'est qu'un confort d'affichage — la validation réelle reste côté serveur.
- */
-const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
-  "Nouveau": ["Ouvert", "En cours", "En attente", "Annulé"],
-  "Ouvert": ["En cours", "En attente", "Annulé"],
-  "En cours": ["En attente", "Ouvert", "Annulé"],
-  "En attente": ["En cours", "Ouvert", "Annulé"],
-  "Réouvert": ["En cours", "En attente", "Ouvert", "Annulé"],
-  "Annulé": [],
-};
 
 export function TicketActions({ ticket, currentUserId, role }: TicketActionsProps) {
   const queryClient = useQueryClient();

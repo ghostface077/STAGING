@@ -18,6 +18,7 @@ from app.models.status import (
     STATUS_RESOLU,
 )
 from app.models.status import Status as StatusModel
+from app.models.priority import Priority
 from app.models.ticket import Ticket
 from app.models.user import User
 from app.schemas.common import Message, Page, PaginationParams
@@ -180,13 +181,17 @@ def list_tickets(
     unassigned: bool | None = None,
     search: str | None = None,
     include_deleted: bool = False,
+    sort_by: str | None = None,
     pagination: PaginationParams = Depends(),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Liste paginée des tickets visibles par l'utilisateur connecté, avec filtres
     de recherche avancée. include_deleted=true (réservé Administrateur, correctif
-    #09) affiche exclusivement les tickets supprimés (la « corbeille »)."""
+    #09) affiche exclusivement les tickets supprimés (la « corbeille »).
+
+    sort_by (optionnel) : "recent" (défaut, inchangé) ou "priority" (les plus
+    urgentes d'abord, à ancienneté égale)."""
     if include_deleted and current_user.role.name != ROLE_ADMINISTRATEUR:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Seul un administrateur peut consulter les tickets supprimés."
@@ -200,9 +205,17 @@ def list_tickets(
 
     total = _apply_ticket_filters(db.query(func.count(Ticket.id)), **filters).scalar()
 
+    ordering = (
+        (Priority.level.desc(), Ticket.created_at.desc())
+        if sort_by == "priority"
+        else (Ticket.created_at.desc(),)
+    )
+    query = _apply_ticket_filters(_ticket_query(db), **filters)
+    if sort_by == "priority":
+        query = query.join(Priority, Ticket.priority_id == Priority.id)
     tickets = (
-        _apply_ticket_filters(_ticket_query(db), **filters)
-        .order_by(Ticket.created_at.desc())
+        query
+        .order_by(*ordering)
         .offset(pagination.offset)
         .limit(pagination.page_size)
         .all()
