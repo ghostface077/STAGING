@@ -1,0 +1,122 @@
+########################################
+# IT Support — Compose de PRODUCTION.
+#
+# Différences volontaires par rapport à docker-compose.yml (développement) :
+#   - env_file : .env.production (jamais .env, jamais commité)
+#   - aucun seed automatique (SEED_ON_STARTUP=false imposé, et de toute façon
+#     refusé au démarrage par app/config.py si ENVIRONMENT=production)
+#   - healthchecks applicatifs (backend + frontend), pas seulement Postgres
+#   - un seul worker uvicorn : le rate-limiting (slowapi) utilise un stockage
+#     en mémoire par processus — plusieurs workers rendraient la limite
+#     incohérente (chaque worker aurait son propre compteur). Pour scaler
+#     au-delà d'une instance, migrer slowapi vers un stockage partagé
+#     (Redis) AVANT d'augmenter --workers.
+#   - aucun port PostgreSQL publié sur l'hôte (accessible uniquement depuis
+#     le réseau Docker interne)
+#
+# Utilisation :
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+########################################
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: itsupport_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+    networks:
+      - itsupport_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: itsupport_backend
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      ENVIRONMENT: production
+      SEED_ON_STARTUP: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT}:8000"
+    volumes:
+      - uploads_data:/app/uploads
+    # Migrations + démarrage gérés par backend/docker-entrypoint.sh (dans
+    # l'image elle-même) — inutile de le répéter ici. Un seul worker
+    # uvicorn : voir la note en tête de fichier sur slowapi.
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+    networks:
+      - itsupport_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    container_name: itsupport_frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost:3000"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+    networks:
+      - itsupport_network
+
+volumes:
+  postgres_data:
+    name: itsupport_postgres_data_prod
+  uploads_data:
+    name: itsupport_uploads_data_prod
+
+networks:
+  itsupport_network:
+    name: itsupport_network_prod
+    driver: bridge

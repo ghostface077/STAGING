@@ -1,0 +1,151 @@
+name: CI/CD
+
+# Déclenché sur chaque push/PR vers master. Le job "deploy" ne s'exécute
+# qu'en push direct sur master, et seulement si les jobs précédents
+# (tests, build, sécurité) sont tous verts.
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "20"
+
+jobs:
+  backend-tests:
+    name: Backend — tests (pytest)
+    runs-on: ubuntu-latest
+    # Les tests tournent sur SQLite en mémoire (voir tests/conftest.py) : pas
+    # besoin d'un service Postgres ici, juste des variables d'environnement
+    # minimales pour que Settings (app/config.py) puisse s'instancier.
+    env:
+      SECRET_KEY: ci_test_secret_key_do_not_use_in_production_0000000000
+      ENVIRONMENT: test
+      BACKEND_CORS_ORIGINS: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Installer les dépendances
+        working-directory: backend
+        run: pip install --no-cache-dir -r requirements.txt
+
+      - name: Exécuter la suite de tests
+        working-directory: backend
+        run: pytest -q
+
+  frontend-build:
+    name: Frontend — type-check & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Installer les dépendances
+        working-directory: frontend
+        run: npm ci
+
+      - name: Vérification des types
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      - name: Build de production
+        working-directory: frontend
+        # Valeur factice suffisante ici : NEXT_PUBLIC_API_URL n'est utilisée au
+        # build que pour être figée dans le bundle JS, aucun appel réseau réel
+        # n'est fait pendant `next build`.
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000/api
+        run: npm run build
+
+  security:
+    name: Vérifications de sécurité
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # historique complet requis par gitleaks pour scanner tous les commits du push
+
+      - name: Recherche de secrets committés (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Audit des dépendances Python (pip-audit)
+        run: |
+          pip install --no-cache-dir pip-audit
+          pip-audit -r backend/requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Audit des dépendances npm
+        working-directory: frontend
+        run: |
+          npm ci
+          npm audit --audit-level=high
+
+  deploy:
+    name: Déploiement (Render)
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-build, security]
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    env:
+      HAS_RENDER_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL != '' }}
+      HAS_PROD_DB: ${{ secrets.PROD_DATABASE_URL != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Sauvegarde la base de production AVANT de déclencher le déploiement.
+      # Ignoré tant que le secret PROD_DATABASE_URL n'est pas configuré
+      # (voir Phase 5 / guide de déploiement) — ne fait pas échouer le job.
+      - name: Sauvegarder la base de production (Neon)
+        if: ${{ env.HAS_PROD_DB == 'true' }}
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: bash scripts/backup-postgres.sh
+
+      - name: Conserver la sauvegarde comme artefact du workflow
+        if: ${{ env.HAS_PROD_DB == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-postgres-pre-deploy
+          path: backups/*.sql
+          retention-days: 14
+
+      # Render est déjà connecté au dépôt GitHub (Phase 5) et redéploie
+      # automatiquement sur chaque push — cette étape sert à déclencher un
+      # déploiement explicite, garanti postérieur aux vérifications
+      # ci-dessus, plutôt que de dépendre du déploiement automatique de
+      # Render qui, lui, ne connaît pas le résultat des tests.
+      - name: Déclencher le déploiement Render
+        if: ${{ env.HAS_RENDER_HOOK == 'true' }}
+        run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+
+      - name: État des secrets de déploiement
+        run: |
+          if [ "${{ env.HAS_RENDER_HOOK }}" != "true" ]; then
+            echo "::warning::RENDER_DEPLOY_HOOK_URL n'est pas configuré — étape de déploiement ignorée. Voir le guide de déploiement (Phase 5)."
+          fi
+          if [ "${{ env.HAS_PROD_DB }}" != "true" ]; then
+            echo "::warning::PROD_DATABASE_URL n'est pas configuré — sauvegarde pré-déploiement ignorée."
+          fi

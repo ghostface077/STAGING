@@ -250,6 +250,18 @@ frontend/
 └── lib/                        Client API, contexte d'authentification, types, constantes
 ```
 
+## Déploiement en production
+
+Documentation complète dans `docs/` :
+- [`docs/deploiement-vercel-render-neon.md`](docs/deploiement-vercel-render-neon.md) — guide pas-à-pas (Vercel + Render + Neon, paliers gratuits)
+- [`docs/checklist-validation.md`](docs/checklist-validation.md) — checklist post-déploiement
+- [`docs/guide-demonstration.md`](docs/guide-demonstration.md) — préparer une démonstration
+- [`docs/sauvegarde-restauration.md`](docs/sauvegarde-restauration.md) — sauvegarde/restauration PostgreSQL
+- [`docs/plan-de-secours.md`](docs/plan-de-secours.md) — rollback et procédures d'échec
+- [`docs/github-actions-secrets.md`](docs/github-actions-secrets.md) — secrets requis par `.github/workflows/ci-cd.yml`
+
+Déploiement local avec Docker : `docker-compose.prod.yml` (voir son en-tête pour l'usage), variables dans `.env.production` (gabarit : `.env.production.example`).
+
 ## Sécurité
 
 - Mots de passe hachés avec bcrypt (jamais stockés en clair).
