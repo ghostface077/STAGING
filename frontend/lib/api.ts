@@ -261,6 +261,10 @@ export const reportsApi = {
     const query = new URLSearchParams(params as Record<string, string>).toString();
     return `${API_BASE_URL}/reports/export.csv${query ? `?${query}` : ""}`;
   },
+  exportPdfUrl: (params?: { date_from?: string; date_to?: string }) => {
+    const query = new URLSearchParams(params as Record<string, string>).toString();
+    return `${API_BASE_URL}/reports/export.pdf${query ? `?${query}` : ""}`;
+  },
 };
 
 // --- Journal d'audit ---

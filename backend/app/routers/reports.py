@@ -1,7 +1,8 @@
 """
-API de rapports : synthèse chiffrée sur une période et export CSV.
-L'export PDF/Excel n'est pas encore implémenté ; l'architecture (fonction
-`build_report_rows`) est prévue pour être réutilisée par un futur exporteur.
+API de rapports : synthèse chiffrée sur une période, export CSV et export PDF.
+`_compute_summary` et `_ticket_rows` sont partagées entre `/summary`,
+`/export.csv` et `/export.pdf` pour ne jamais faire diverger les chiffres
+d'un format à l'autre.
 """
 import csv
 import io
@@ -9,6 +10,11 @@ from datetime import date, datetime, time, timezone
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import cm
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -28,7 +34,9 @@ def _sanitize_csv_field(value: str | None) -> str:
     Sheets) — correctif #11, injection CSV / Formula Injection (CWE-1236).
     Une valeur commençant par =, +, -, @, tabulation ou retour chariot est
     préfixée d'une apostrophe, qui neutralise la formule sans altérer le
-    contenu visible ; toute autre valeur est retournée strictement inchangée."""
+    contenu visible ; toute autre valeur est retournée strictement inchangée.
+    Spécifique au risque CSV/tableur — un PDF n'y est pas exposé, cette
+    fonction n'est donc utilisée que par export_csv."""
     if value is None:
         return ""
     text = str(value)
@@ -49,16 +57,10 @@ def _period_query(db: Session, date_from: date | None, date_to: date | None):
     return query
 
 
-@router.get("/summary", response_model=DashboardStatistics)
-def report_summary(
-    date_from: date | None = None,
-    date_to: date | None = None,
-    current_user: User = Depends(require_manager),
-    db: Session = Depends(get_db),
-):
-    """Synthèse chiffrée des tickets sur une période donnée (réservé Responsable IT / Administrateur)."""
-    tickets = _period_query(db, date_from, date_to).all()
-
+def _compute_summary(db: Session, tickets: list[Ticket]) -> DashboardStatistics:
+    """Calcule la synthèse chiffrée d'une liste de tickets. Partagée par
+    `/summary` et `/export.pdf` pour que les deux affichent toujours les
+    mêmes chiffres pour une même période."""
     total = len(tickets)
     resolved_tickets = [t for t in tickets if t.resolved_at is not None]
     responded_tickets = [t for t in tickets if t.first_response_at is not None]
@@ -94,6 +96,55 @@ def report_summary(
     )
 
 
+def _ticket_rows(tickets: list[Ticket]) -> list[tuple[str, str, str, str, str, str, str, str, str]]:
+    """Lignes brutes (non échappées) de la table tickets, partagées par le
+    CSV (qui les neutralise ensuite via _sanitize_csv_field) et le PDF (qui
+    n'a pas besoin de cette neutralisation, un PDF n'étant pas un tableur)."""
+    return [
+        (
+            t.reference,
+            t.title,
+            t.status.name,
+            t.priority.name,
+            t.category.name,
+            t.requester.full_name,
+            t.technician.full_name if t.technician else "",
+            t.created_at.strftime("%Y-%m-%d %H:%M"),
+            t.resolved_at.strftime("%Y-%m-%d %H:%M") if t.resolved_at else "",
+        )
+        for t in tickets
+    ]
+
+
+_TICKET_COLUMNS = [
+    "Référence", "Titre", "Statut", "Priorité", "Catégorie", "Demandeur", "Technicien",
+    "Date de création", "Date de résolution",
+]
+
+_SUMMARY_ROWS = [
+    ("Total des tickets", "total_tickets", "{}"),
+    ("Tickets résolus", "tickets_resolus", "{}"),
+    ("Tickets ouverts", "tickets_ouverts", "{}"),
+    ("Tickets critiques", "tickets_critiques", "{}"),
+    ("SLA dépassés", "tickets_sla_depasse", "{}"),
+    ("Temps moyen de résolution", "temps_moyen_resolution_heures", "{} h"),
+    ("Temps moyen de 1ère réponse", "temps_moyen_premiere_reponse_minutes", "{} min"),
+    ("Satisfaction moyenne", "satisfaction_moyenne", "{} / 5"),
+]
+
+
+@router.get("/summary", response_model=DashboardStatistics)
+def report_summary(
+    date_from: date | None = None,
+    date_to: date | None = None,
+    current_user: User = Depends(require_manager),
+    db: Session = Depends(get_db),
+):
+    """Synthèse chiffrée des tickets sur une période donnée (réservé Responsable IT / Administrateur)."""
+    tickets = _period_query(db, date_from, date_to).all()
+    return _compute_summary(db, tickets)
+
+
 @router.get("/export.csv")
 def export_csv(
     date_from: date | None = None,
@@ -106,27 +157,95 @@ def export_csv(
 
     buffer = io.StringIO()
     writer = csv.writer(buffer, delimiter=";")
-    writer.writerow([
-        "Référence", "Titre", "Statut", "Priorité", "Catégorie", "Demandeur", "Technicien",
-        "Date de création", "Date de résolution",
-    ])
-    for t in tickets:
-        writer.writerow([
-            t.reference,
-            _sanitize_csv_field(t.title),
-            t.status.name,
-            t.priority.name,
-            t.category.name,
-            _sanitize_csv_field(t.requester.full_name),
-            _sanitize_csv_field(t.technician.full_name) if t.technician else "",
-            t.created_at.strftime("%Y-%m-%d %H:%M"),
-            t.resolved_at.strftime("%Y-%m-%d %H:%M") if t.resolved_at else "",
-        ])
+    writer.writerow(_TICKET_COLUMNS)
+    for row in _ticket_rows(tickets):
+        writer.writerow([_sanitize_csv_field(value) for value in row])
 
     buffer.seek(0)
     filename = f"rapport_tickets_{date.today().isoformat()}.csv"
     return StreamingResponse(
         iter([buffer.getvalue()]),
         media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/export.pdf")
+def export_pdf(
+    date_from: date | None = None,
+    date_to: date | None = None,
+    current_user: User = Depends(require_manager),
+    db: Session = Depends(get_db),
+):
+    """Exporte un rapport PDF (synthèse chiffrée + liste des tickets) de la période."""
+    tickets = _period_query(db, date_from, date_to).order_by(Ticket.created_at).all()
+    summary = _compute_summary(db, tickets)
+
+    styles = getSampleStyleSheet()
+    title_style = styles["Title"]
+    normal_style = styles["Normal"]
+    cell_style = ParagraphStyle("cell", parent=normal_style, fontSize=8, leading=10)
+    header_cell_style = ParagraphStyle("header_cell", parent=cell_style, textColor=colors.white, fontName="Helvetica-Bold")
+
+    period_label = f"{date_from.isoformat() if date_from else '…'} → {date_to.isoformat() if date_to else '…'}"
+    generated_label = datetime.now(timezone.utc).strftime("%d/%m/%Y à %H:%M UTC")
+
+    elements = [
+        Paragraph("Rapport de tickets — IT Support", title_style),
+        Paragraph(f"Période : {period_label} · Généré le {generated_label}", normal_style),
+        Spacer(1, 0.6 * cm),
+    ]
+
+    # --- Synthèse chiffrée ---
+    summary_data = [
+        [label, template.format(getattr(summary, field)) if getattr(summary, field) is not None else "—"]
+        for label, field, template in _SUMMARY_ROWS
+    ]
+    summary_table = Table(summary_data, colWidths=[7 * cm, 5 * cm])
+    summary_table.setStyle(TableStyle([
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E2E4EE")),
+    ]))
+    elements += [summary_table, Spacer(1, 1 * cm)]
+
+    # --- Liste des tickets ---
+    if tickets:
+        header_row = [Paragraph(col, header_cell_style) for col in _TICKET_COLUMNS]
+        data_rows = [
+            [Paragraph(str(value), cell_style) for value in row]
+            for row in _ticket_rows(tickets)
+        ]
+        ticket_table = Table(
+            [header_row, *data_rows],
+            colWidths=[2.9 * cm, 5 * cm, 2.2 * cm, 2.2 * cm, 2.8 * cm, 3.2 * cm, 3.2 * cm, 3 * cm, 3 * cm],
+            repeatRows=1,
+        )
+        ticket_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4338CA")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F5F6FA")]),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E2E4EE")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ]))
+        elements.append(ticket_table)
+    else:
+        elements.append(Paragraph("Aucun ticket sur cette période.", normal_style))
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=landscape(A4),
+        leftMargin=1.5 * cm, rightMargin=1.5 * cm, topMargin=1.5 * cm, bottomMargin=1.5 * cm,
+    )
+    doc.build(elements)
+    buffer.seek(0)
+
+    filename = f"rapport_tickets_{date.today().isoformat()}.pdf"
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

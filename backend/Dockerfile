@@ -40,7 +40,10 @@ USER appuser
 
 EXPOSE 8000
 
+# ${PORT:-8000} et non 8000 en dur : sur Render, l'entrypoint écoute sur le
+# port que $PORT désigne (voir docker-entrypoint.sh) — un port fixe ici
+# ferait échouer ce healthcheck dès que $PORT diffère de 8000.
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
-    CMD curl -f http://localhost:8000/api/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8000}/api/health || exit 1
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

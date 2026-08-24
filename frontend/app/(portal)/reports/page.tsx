@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Clock, Download, FileText, Star, Ticket } from "lucide-react";
+import { CheckCircle2, Clock, Download, FileDown, FileText, Star, Ticket } from "lucide-react";
 import { useState } from "react";
 
 import { PageHeader } from "@/components/common/page-header";
@@ -29,11 +29,18 @@ export default function ReportsPage() {
         title="Rapports"
         description="Statistiques détaillées du support sur une période donnée."
         actions={
-          <Button asChild variant="outline">
-            <a href={reportsApi.exportCsvUrl({ date_from: dateFrom || undefined, date_to: dateTo || undefined })} target="_blank" rel="noreferrer">
-              <Download /> Exporter en CSV
-            </a>
-          </Button>
+          <div className="flex gap-2">
+            <Button asChild variant="outline">
+              <a href={reportsApi.exportCsvUrl({ date_from: dateFrom || undefined, date_to: dateTo || undefined })} target="_blank" rel="noreferrer">
+                <Download /> Exporter en CSV
+              </a>
+            </Button>
+            <Button asChild variant="outline">
+              <a href={reportsApi.exportPdfUrl({ date_from: dateFrom || undefined, date_to: dateTo || undefined })} target="_blank" rel="noreferrer">
+                <FileDown /> Exporter en PDF
+              </a>
+            </Button>
+          </div>
         }
       />
 
@@ -88,7 +95,7 @@ export default function ReportsPage() {
           <CardTitle className="text-base">Exports disponibles</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          <p>L’export CSV est disponible ci-dessus (compatible Excel). Les exports PDF et Excel natifs sont prévus dans une prochaine version ; l’architecture du backend (endpoint <code className="rounded bg-muted px-1 py-0.5">/api/reports</code>) est déjà prête pour les accueillir.</p>
+          <p>Export CSV (compatible Excel) et export PDF (synthèse chiffrée + liste des tickets, prête à imprimer) disponibles ci-dessus. Un export Excel natif (`.xlsx`) pourrait être ajouté ultérieurement en réutilisant les mêmes données.</p>
         </CardContent>
       </Card>
     </div>

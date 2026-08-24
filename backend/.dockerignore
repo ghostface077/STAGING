@@ -6,3 +6,8 @@ venv/
 uploads/*
 !uploads/.gitkeep
 .env
+.env.production
+*.db
+*.log
+.git
+tests/

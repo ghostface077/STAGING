@@ -281,8 +281,8 @@ Déploiement local avec Docker : `docker-compose.prod.yml` (voir son en-tête po
 
 Par souci de transparence, voici ce qui est volontairement simplifié dans cette première version :
 
-- **Export PDF/Excel** : seul l'export CSV est implémenté (`GET /api/reports/export.csv`) ; l'endpoint `/api/reports` est structuré pour accueillir des exporteurs PDF/Excel supplémentaires sans changement d'architecture.
-- **Pagination des tickets** : la liste des tickets est paginée côté frontend (l'API retourne la liste complète filtrée). Une pagination `skip/limit` côté API serait recommandée avant un déploiement avec un très grand volume de tickets.
+- **Export Excel natif** : CSV (`GET /api/reports/export.csv`) et PDF (`GET /api/reports/export.pdf`, synthèse chiffrée + liste des tickets) sont implémentés et partagent leur calcul de données (`_compute_summary`/`_ticket_rows`) ; un export `.xlsx` natif pourrait être ajouté en réutilisant les mêmes fonctions.
+- **Pagination des tickets** : pagination réelle côté API (`page`/`page_size`, réponse `Page[T]`), appliquée à `GET /api/tickets`.
 - **Sélecteur de date** : les champs de date utilisent le sélecteur natif du navigateur (`<input type="date">`) plutôt qu'un composant `Calendar` personnalisé.
 - **Notifications temps réel** : la cloche de notifications se met à jour par sondage périodique (toutes les 30 secondes), pas par WebSocket.
 - **Reconnexion administrateur/portail** : consulter `/admin/tickets` puis ouvrir un ticket redirige vers la page de détail du portail standard (`/tickets/{id}`), qui reste pleinement fonctionnelle mais sort visuellement du thème du back-office.

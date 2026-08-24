@@ -32,13 +32,20 @@ def _cookie_kwargs(*, path: str) -> dict:
     """Attributs communs aux deux cookies d'authentification (correctif #12) :
     httpOnly (inaccessible en JavaScript — la protection centrale de ce
     correctif contre le vol de jeton par XSS, contrairement au stockage
-    précédent en localStorage) ; SameSite=Lax (le navigateur n'envoie pas le
-    cookie sur une requête POST/PUT/DELETE déclenchée depuis un autre site —
-    seules méthodes utilisées par les mutations de cette API, aucune ne se
-    fait via GET — protection CSRF suffisante ici sans jeton dédié) ; Secure
-    activé uniquement en production (l'environnement de développement local
-    tourne en HTTP simple)."""
-    return dict(httponly=True, samesite="lax", secure=settings.environment == "production", path=path)
+    précédent en localStorage).
+
+    SameSite : "lax" en développement (frontend et backend sur localhost —
+    même "site" au sens des cookies malgré des ports différents, Lax suffit
+    et fonctionne en HTTP simple). "none" en production, où le frontend
+    (Vercel) et le backend (Render) sont sur des domaines réellement
+    différents — un cookie SameSite=Lax n'est alors jamais envoyé sur les
+    appels API cross-site du navigateur (uniquement sur une navigation
+    top-level), ce qui casserait l'authentification dès le premier appel
+    suivant le login. SameSite=None exige Secure=True, déjà le cas en
+    production ci-dessous — la protection CSRF reste assurée par ailleurs
+    (aucune mutation de cette API ne se déclenche via une requête GET)."""
+    is_production = settings.environment == "production"
+    return dict(httponly=True, samesite="none" if is_production else "lax", secure=is_production, path=path)
 
 
 def _set_auth_cookies(response: Response, *, access_token: str, refresh_token: str) -> None:

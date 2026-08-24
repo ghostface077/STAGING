@@ -10,4 +10,9 @@ echo "[entrypoint] Application des migrations Alembic..."
 alembic upgrade head
 
 echo "[entrypoint] Démarrage d'uvicorn..."
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+# Render assigne dynamiquement le port d'écoute via $PORT et route son proxy
+# vers cette valeur précise (pas nécessairement 8000) : un port codé en dur
+# ici ferait échouer toute requête entrante avec un 502, même conteneur en
+# bonne santé. ${PORT:-8000} : conserve 8000 par défaut pour docker-compose
+# (local/VPS), où PORT n'est jamais défini.
+exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}

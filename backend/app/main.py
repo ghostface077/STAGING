@@ -4,16 +4,20 @@ Point d'entrée de l'API FastAPI — IT Support (gestion de tickets).
 import logging
 import time
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 from app.config import settings
+from app.database import get_db
 from app.logging_config import configure_logging
 from app.rate_limit import limiter
 from app.security import ACCESS_TOKEN_COOKIE, decode_token
@@ -172,8 +176,34 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 @app.get("/api/health", tags=["Santé"])
 def health_check():
-    """Vérifie que l'API est démarrée et joignable."""
+    """Liveness : l'API FastAPI est démarrée et joignable. Ne touche jamais
+    la base de données — c'est volontaire : c'est cet endpoint que Render
+    (ou tout orchestrateur) doit utiliser pour décider de redémarrer le
+    conteneur. Un Neon momentanément indisponible (mise en veille du palier
+    gratuit, pic de latence) ne doit jamais provoquer un redémarrage inutile
+    du backend, qui n'y changerait rien. Pour l'état réel de la base, voir
+    /api/health/db."""
     return {"status": "ok", "environment": settings.environment}
+
+
+@app.get("/api/health/db", tags=["Santé"])
+def health_check_db(db: Session = Depends(get_db)):
+    """Readiness base de données : exécute un SELECT 1 en lecture seule pour
+    confirmer que PostgreSQL/Neon répond réellement (pas seulement que
+    l'URL est configurée). Indépendant de /api/health — voir sa docstring
+    sur pourquoi ils ne doivent jamais être fusionnés. Ne renvoie jamais le
+    détail de l'erreur ni DATABASE_URL au client : seul le statut booléen
+    est exposé, le détail complet part dans les logs serveur (correctif #10,
+    unhandled_exception_handler ci-dessous applique le même principe)."""
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "ok", "database": "reachable"}
+    except SQLAlchemyError:
+        logger.exception("Échec du contrôle de disponibilité de la base de données (/api/health/db)")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "degraded", "database": "unreachable"},
+        )
 
 
 # Enregistrement de l'ensemble des routers de l'application
