@@ -90,6 +90,19 @@ statuses_table = sa.table("statuses", sa.column("name", sa.String), sa.column("d
 def upgrade() -> None:
     bind = op.get_bind()
 
+    # Idempotent au niveau de la migration entière (et pas seulement des lignes
+    # individuelles, contrairement à seed.py::get_or_create) : si le rôle
+    # "Utilisateur" existe déjà, on considère que toute cette donnée de
+    # référence a déjà été insérée (par un environnement de dev déjà seedé
+    # avant cette migration, ou par une exécution précédente) et on ne
+    # retente rien. Sans ce garde-fou, un ré-application sur une base déjà
+    # peuplée échouerait sur "roles_name_key" (contrainte unique) et, pour les
+    # catégories (sans contrainte unique sur name), dupliquerait silencieusement
+    # les lignes à chaque nouvelle exécution.
+    already_present = bind.execute(sa.text("SELECT 1 FROM roles WHERE name = :name"), {"name": "Utilisateur"}).first()
+    if already_present:
+        return
+
     op.bulk_insert(roles_table, [{"name": name, "description": desc} for name, desc in ROLES])
     op.bulk_insert(departments_table, [{"name": name, "description": desc} for name, desc in DEPARTMENTS])
     op.bulk_insert(priorities_table, [{"name": name, "level": level, "description": desc} for name, level, desc in PRIORITIES])
