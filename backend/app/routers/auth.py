@@ -34,18 +34,23 @@ def _cookie_kwargs(*, path: str) -> dict:
     correctif contre le vol de jeton par XSS, contrairement au stockage
     précédent en localStorage).
 
-    SameSite : "lax" en développement (frontend et backend sur localhost —
-    même "site" au sens des cookies malgré des ports différents, Lax suffit
-    et fonctionne en HTTP simple). "none" en production, où le frontend
-    (Vercel) et le backend (Render) sont sur des domaines réellement
-    différents — un cookie SameSite=Lax n'est alors jamais envoyé sur les
-    appels API cross-site du navigateur (uniquement sur une navigation
-    top-level), ce qui casserait l'authentification dès le premier appel
-    suivant le login. SameSite=None exige Secure=True, déjà le cas en
-    production ci-dessous — la protection CSRF reste assurée par ailleurs
-    (aucune mutation de cette API ne se déclenche via une requête GET)."""
-    is_production = settings.environment == "production"
-    return dict(httponly=True, samesite="none" if is_production else "lax", secure=is_production, path=path)
+    Secure/SameSite proviennent de settings.cookie_*_resolved (app/config.py),
+    volontairement PAS dérivés directement de `environment` : "production" ne
+    signifie pas forcément "servi en HTTPS" (auto-hébergement derrière Nginx
+    sans certificat TLS pendant la mise en place, notamment). Par défaut ces
+    valeurs reproduisent l'ancien comportement (Secure+SameSite=None en
+    production, adapté au cas Vercel/Render cross-domaine), mais restent
+    surchargeables via COOKIE_SECURE/COOKIE_SAMESITE — voir le commentaire
+    détaillé dans app/config.py. SameSite=None exige Secure=True, contrôlé au
+    démarrage par _validate_production_secrets. La protection CSRF reste
+    assurée par ailleurs (aucune mutation de cette API ne se déclenche via une
+    requête GET)."""
+    return dict(
+        httponly=True,
+        samesite=settings.cookie_samesite_resolved,
+        secure=settings.cookie_secure_resolved,
+        path=path,
+    )
 
 
 def _set_auth_cookies(response: Response, *, access_token: str, refresh_token: str) -> None:
