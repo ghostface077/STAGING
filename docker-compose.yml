@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    # Le port PostgreSQL n'est plus publié sur l'hôte : la base n'est joignable
+    # Le port PostgreSQL n'est pas publié sur l'hôte : la base n'est joignable
     # que depuis le réseau Docker interne (service `backend`). Pour un accès
     # local de développement (psql, DBeaver...), voir docker-compose.override.yml.
     expose:
@@ -37,19 +37,16 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Conservé le temps de vérifier l'accès via Nginx (http://localhost) —
+    # à retirer une fois confirmé, pour empêcher tout accès direct au backend
+    # en contournant Nginx. Voir le rapport final pour le changement exact.
     ports:
       - "${BACKEND_PORT}:8000"
     volumes:
       - uploads_data:/app/uploads
-    command: >
-      sh -c "alembic upgrade head &&
-             if [ \"$$ENVIRONMENT\" != \"production\" ] && [ \"$$SEED_ON_STARTUP\" != \"false\" ]; then
-               echo '[seed] environnement non-production : injection des donnees de demonstration' &&
-               python -m app.seed;
-             else
-               echo '[seed] production ou SEED_ON_STARTUP=false : seed ignore';
-             fi &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    # Migrations + seed conditionnel + démarrage : gérés par
+    # backend/docker-entrypoint.sh (dans l'image elle-même), pas ici — voir
+    # son en-tête pour pourquoi (Render notamment ne lit aucun docker-compose).
     networks:
       - itsupport_network
 
@@ -67,8 +64,36 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     depends_on:
       - backend
+    # Conservé le temps de vérifier l'accès via Nginx (http://localhost) —
+    # même remarque que pour `backend` ci-dessus.
     ports:
       - "${FRONTEND_PORT}:3000"
+    networks:
+      - itsupport_network
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: itsupport_nginx
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      # 127.0.0.1 explicite, pas "localhost" : évite une résolution IPv6 (::1)
+      # sur laquelle rien n'écoute dans certains environnements WSL2/Docker
+      # Desktop, qui ferait échouer le healthcheck en "Connection refused"
+      # alors que Nginx répond normalement depuis l'extérieur.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - itsupport_network
 

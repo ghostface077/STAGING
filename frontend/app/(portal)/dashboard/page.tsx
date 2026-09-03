@@ -1,12 +1,14 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Clock, Gauge, ListTodo, ShieldAlert, Star, Ticket } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Gauge, ListTodo, PlusCircle, ShieldAlert, Star, Ticket } from "lucide-react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { StatCard } from "@/components/common/stat-card";
 import { PageHeader } from "@/components/common/page-header";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth-context";
@@ -52,6 +54,15 @@ export default function DashboardPage() {
       <PageHeader
         title={`Bonjour, ${user?.first_name ?? ""} 👋`}
         description={role === "Utilisateur" ? "Voici un aperçu de vos demandes en cours." : "Voici l'état actuel du support informatique."}
+        actions={
+          role === "Utilisateur" ? (
+            <Button asChild>
+              <Link href="/tickets/nouveau">
+                <PlusCircle /> Créer un ticket
+              </Link>
+            </Button>
+          ) : undefined
+        }
       />
 
       {/* Indicateurs clés */}

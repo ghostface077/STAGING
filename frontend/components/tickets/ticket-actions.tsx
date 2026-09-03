@@ -109,7 +109,7 @@ export function TicketActions({ ticket, currentUserId, role }: TicketActionsProp
             {!CLOSED.has(ticket.status.name) && (
               <DropdownMenuItem onSelect={() => setDialog("status")}>Changer le statut</DropdownMenuItem>
             )}
-            <DropdownMenuItem onSelect={() => setDialog("priority")}>Changer la priorité</DropdownMenuItem>
+            {isManager(role) && <DropdownMenuItem onSelect={() => setDialog("priority")}>Changer la priorité</DropdownMenuItem>}
             {isManager(role) && <DropdownMenuItem onSelect={() => setDialog("assign")}>Attribuer / réassigner</DropdownMenuItem>}
             <DropdownMenuItem onSelect={() => setDialog("escalate")}>
               <Workflow className="h-4 w-4" /> Escalader
@@ -119,7 +119,7 @@ export function TicketActions({ ticket, currentUserId, role }: TicketActionsProp
       )}
 
       <StatusDialog open={dialog === "status"} onOpenChange={() => setDialog(null)} ticket={ticket} onDone={invalidate} />
-      <PriorityDialog open={dialog === "priority"} onOpenChange={() => setDialog(null)} ticket={ticket} onDone={invalidate} />
+      {isManager(role) && <PriorityDialog open={dialog === "priority"} onOpenChange={() => setDialog(null)} ticket={ticket} onDone={invalidate} />}
       <ResolveDialog open={dialog === "resolve"} onOpenChange={() => setDialog(null)} ticket={ticket} onDone={invalidate} />
       {isManager(role) && <AssignDialog open={dialog === "assign"} onOpenChange={() => setDialog(null)} ticket={ticket} onDone={invalidate} />}
       <EscalateDialog open={dialog === "escalate"} onOpenChange={() => setDialog(null)} ticket={ticket} onDone={invalidate} />

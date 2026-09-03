@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { useToast } from "@/components/ui/use-toast";
 import { getErrorMessage, usersApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -136,17 +137,17 @@ export default function ProfilePage() {
             {passwordError && <Alert variant="destructive"><AlertDescription>{passwordError}</AlertDescription></Alert>}
             <div className="space-y-1.5">
               <Label htmlFor="current_password">Mot de passe actuel</Label>
-              <Input id="current_password" type="password" {...register("current_password")} />
+              <PasswordInput id="current_password" {...register("current_password")} />
               {errors.current_password && <p className="text-xs text-destructive">{errors.current_password.message}</p>}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="new_password">Nouveau mot de passe</Label>
-              <Input id="new_password" type="password" {...register("new_password")} />
+              <PasswordInput id="new_password" {...register("new_password")} />
               {errors.new_password && <p className="text-xs text-destructive">{errors.new_password.message}</p>}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="confirm_password">Confirmer le nouveau mot de passe</Label>
-              <Input id="confirm_password" type="password" {...register("confirm_password")} />
+              <PasswordInput id="confirm_password" {...register("confirm_password")} />
               {errors.confirm_password && <p className="text-xs text-destructive">{errors.confirm_password.message}</p>}
             </div>
             <Button type="submit" disabled={isSavingPassword}>

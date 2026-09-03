@@ -109,15 +109,20 @@ Cette commande :
 
 1. démarre PostgreSQL et attend qu'il soit prêt (`healthcheck`) ;
 2. construit et démarre le backend FastAPI, applique les migrations Alembic (`alembic upgrade head`), puis exécute le script de données de démonstration (`python -m app.seed`) ;
-3. construit et démarre le frontend Next.js.
+3. construit et démarre le frontend Next.js ;
+4. démarre Nginx, en reverse proxy devant les deux (`/` → Next.js, `/api/` → FastAPI) — voir `nginx/nginx.conf`.
 
-Une fois démarré :
+Une fois démarré, point d'entrée unique :
 
-- Frontend : http://localhost:3000
-- API backend : http://localhost:8000/api
-- Documentation interactive de l'API (Swagger) : http://localhost:8000/api/docs
+- **Application : http://localhost**
+- API : http://localhost/api
+- Documentation interactive de l'API (Swagger) : http://localhost/api/docs
 
-Pour arrêter : `Ctrl+C` puis `docker compose down` (ajoutez `-v` pour supprimer aussi les volumes, y compris les données PostgreSQL).
+(Les ports directs `:3000` et `:8000` restent accessibles pour l'instant, le temps de vérifier que tout fonctionne via Nginx — à retirer de `docker-compose.yml` une fois confirmé, pour n'exposer que le port 80.)
+
+Pour arrêter : `Ctrl+C` puis `docker compose down`.
+
+> ⚠️ **Ne jamais ajouter `-v`** à cette commande (`docker compose down -v`) : ça supprime aussi les volumes Docker, **y compris les données PostgreSQL**, de façon irréversible. Pour repartir d'une base vide intentionnellement, le faire en connaissance de cause et jamais par réflexe.
 
 > **Accès direct à PostgreSQL en local (psql, DBeaver...)** : le port 5432 n'est plus publié par défaut (voir section Sécurité). Créez un fichier `docker-compose.override.yml` à la racine (chargé automatiquement par `docker compose up`, non versionné) :
 > ```yaml

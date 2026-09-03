@@ -14,7 +14,13 @@ class TicketCreate(BaseModel):
     title: str = Field(min_length=3, max_length=255)
     description: str = Field(min_length=1)
     category_id: int
-    priority_id: int
+    # Optionnelle et volontairement ignorée à la création (voir
+    # routers/tickets.py:create_ticket) : un Utilisateur ne choisit plus la
+    # priorité de son ticket, elle est fixée par défaut puis ajustée ensuite
+    # par un Responsable IT/Administrateur. Le champ reste accepté pour ne
+    # pas casser un éventuel appel qui l'enverrait encore, mais sa valeur
+    # n'est jamais utilisée.
+    priority_id: int | None = None
     equipment_id: int | None = None
 
 

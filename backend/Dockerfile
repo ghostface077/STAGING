@@ -43,7 +43,18 @@ EXPOSE 8000
 # ${PORT:-8000} et non 8000 en dur : sur Render, l'entrypoint écoute sur le
 # port que $PORT désigne (voir docker-entrypoint.sh) — un port fixe ici
 # ferait échouer ce healthcheck dès que $PORT diffère de 8000.
-HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
+#
+# start-period=90s (et non 20s) : l'entrypoint exécute `alembic upgrade head`
+# puis, hors production, `python -m app.seed` AVANT de lancer uvicorn (voir
+# docker-entrypoint.sh) — mesuré à ~90-120s à froid (migrations + seed des
+# données de démonstration) selon la charge de la machine hôte, largement
+# au-delà de l'ancien budget de 20s+5×15s=95s. Ce budget trop court faisait
+# marquer le conteneur "unhealthy" alors que l'API démarrait normalement,
+# juste trop tard pour les vérifications déjà toutes épuisées — ce qui
+# bloquait ensuite `nginx`/`frontend` via leur `depends_on: service_healthy`.
+# retries=6 : les vérifications après le start-period gardent 60s de marge
+# supplémentaire (6×10s) pour absorber un démarrage encore plus lent.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=6 \
     CMD curl -f http://localhost:${PORT:-8000}/api/health || exit 1
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

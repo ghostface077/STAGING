@@ -50,7 +50,7 @@ export default function TicketDetailPage() {
   const canRate = isRequester && (ticket.status.name === "Résolu" || ticket.status.name === "Fermé");
   const canSeeAllTickets = role === "Responsable IT" || role === "Administrateur";
   const backHref = canSeeAllTickets ? "/tickets" : "/mes-tickets";
-  const backLabel = canSeeAllTickets ? "Tous les tickets" : "Mes tickets";
+  const backLabel = canSeeAllTickets ? "Tous les tickets" : role === "Technicien" ? "Tickets assignés" : "Mes tickets";
 
   return (
     <div className="space-y-6">

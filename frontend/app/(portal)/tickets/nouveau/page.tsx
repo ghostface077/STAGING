@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Laptop, Loader2, Paperclip, Send, ShieldAlert } from "lucide-react";
+import { Loader2, Paperclip, Send, ShieldAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -9,7 +9,6 @@ import { z } from "zod";
 
 import { EmptyState } from "@/components/common/empty-state";
 import { PageHeader } from "@/components/common/page-header";
-import { PriorityBadge } from "@/components/tickets/priority-badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,24 +17,21 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { useCategories, useEquipmentList, usePriorities } from "@/hooks/use-reference-data";
+import { useCategories } from "@/hooks/use-reference-data";
 import { attachmentsApi, getErrorMessage, ticketsApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
-const PRIORITY_DESCRIPTIONS: Record<string, string> = {
-  "Critique": "Incident majeur nécessitant une intervention immédiate.",
-  "Haute": "Problème important impactant fortement votre activité.",
-  "Normale": "Problème standard, à traiter dans des délais habituels.",
-  "Basse": "Demande non urgente.",
-};
-
+// La priorité n'est plus choisie par l'utilisateur (elle est fixée par défaut
+// à la création, voir backend/app/routers/tickets.py:create_ticket) et le
+// champ "Équipement concerné" a été retiré du formulaire — les deux restent
+// modifiables uniquement par Responsable IT/Administrateur après coup pour
+// la priorité, et le lien ticket-équipement reste consultable depuis la
+// fiche équipement (fonctionnalité distincte, non concernée par ce retrait).
 const ticketSchema = z.object({
   title: z.string().min(3, "Le titre doit contenir au moins 3 caractères."),
   description: z.string().min(1, "La description est obligatoire."),
   category_id: z.string().min(1, "Merci de choisir une catégorie."),
   subcategory_id: z.string().optional(),
-  priority_id: z.string().min(1, "Merci de choisir une priorité."),
-  equipment_id: z.string().optional(),
 });
 
 type TicketFormValues = z.infer<typeof ticketSchema>;
@@ -45,9 +41,6 @@ export default function NewTicketPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const { data: categories } = useCategories();
-  const { data: priorities } = usePriorities();
-  const { data: equipments } = useEquipmentList();
-
   const [serverError, setServerError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -78,7 +71,6 @@ export default function NewTicketPage() {
   const selectedCategoryId = watch("category_id");
   const selectedCategory = categories?.find((category) => String(category.id) === selectedCategoryId);
   const subcategories = selectedCategory?.children ?? [];
-  const selectedPriority = priorities?.find((priority) => String(priority.id) === watch("priority_id"));
 
   const onSubmit = async (values: TicketFormValues) => {
     setServerError(null);
@@ -89,8 +81,6 @@ export default function NewTicketPage() {
         title: values.title,
         description: values.description,
         category_id: finalCategoryId,
-        priority_id: Number(values.priority_id),
-        equipment_id: values.equipment_id ? Number(values.equipment_id) : null,
       });
 
       if (file) {
@@ -183,61 +173,13 @@ export default function NewTicketPage() {
           </CardContent>
         </Card>
 
-        {/* Section 2 — Priorité */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Priorité</CardTitle>
-            <CardDescription>Quel est le niveau d’urgence de cette demande ?</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {priorities?.map((priority) => {
-                const isSelected = String(priority.id) === watch("priority_id");
-                return (
-                  <button
-                    type="button"
-                    key={priority.id}
-                    onClick={() => setValue("priority_id", String(priority.id))}
-                    className={`rounded-lg border p-3 text-left transition-colors ${
-                      isSelected ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-accent"
-                    }`}
-                  >
-                    <PriorityBadge name={priority.name} />
-                  </button>
-                );
-              })}
-            </div>
-            {selectedPriority && (
-              <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                {PRIORITY_DESCRIPTIONS[selectedPriority.name] ?? selectedPriority.description}
-              </p>
-            )}
-            {errors.priority_id && <p className="text-xs text-destructive">{errors.priority_id.message}</p>}
-          </CardContent>
-        </Card>
-
-        {/* Section 3 — Informations complémentaires */}
+        {/* Section 2 — Informations complémentaires */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Informations complémentaires</CardTitle>
             <CardDescription>Facultatif, mais utile pour accélérer le traitement.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label className="flex items-center gap-1.5"><Laptop className="h-3.5 w-3.5" /> Équipement concerné</Label>
-              <Select value={watch("equipment_id")} onValueChange={(value) => setValue("equipment_id", value)} disabled={!equipments?.length}>
-                <SelectTrigger><SelectValue placeholder={equipments?.length ? "Sélectionner (optionnel)" : "Aucun équipement associé à votre compte"} /></SelectTrigger>
-                <SelectContent>
-                  {equipments?.map((equipment) => (
-                    <SelectItem key={equipment.id} value={String(equipment.id)}>
-                      {equipment.asset_number} — {equipment.brand} {equipment.model}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             <div className="space-y-1.5">
               <Label htmlFor="attachment" className="flex items-center gap-1.5"><Paperclip className="h-3.5 w-3.5" /> Pièce jointe</Label>
               <Input id="attachment" type="file" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="cursor-pointer" />

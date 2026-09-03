@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Pagination } from "@/components/ui/pagination";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -204,7 +205,7 @@ export default function AdminUsersPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password">{editing ? "Nouveau mot de passe (optionnel)" : "Mot de passe"}</Label>
-              <Input id="password" type="password" placeholder={editing ? "Laisser vide pour ne pas changer" : "Minimum 8 caractères"} {...register("password")} />
+              <PasswordInput id="password" placeholder={editing ? "Laisser vide pour ne pas changer" : "Minimum 8 caractères"} {...register("password")} />
               {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
             </div>
             <div className="grid grid-cols-2 gap-3">

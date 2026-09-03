@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { getErrorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
@@ -131,7 +132,7 @@ export default function LoginPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="password">Mot de passe</Label>
-                  <Input id="password" type="password" placeholder="••••••••" autoComplete="current-password" {...register("password")} />
+                  <PasswordInput id="password" placeholder="••••••••" autoComplete="current-password" {...register("password")} />
                   {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
                 </div>
                 <Button type="submit" className="w-full" disabled={isSubmitting}>

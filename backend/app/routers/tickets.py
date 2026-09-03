@@ -9,7 +9,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.deps import require_admin, require_staff, require_user_role, get_current_user
+from app.deps import require_admin, require_manager, require_staff, require_user_role, get_current_user
 from app.models.role import ROLE_ADMINISTRATEUR, ROLE_RESPONSABLE_IT, ROLE_TECHNICIEN, ROLE_UTILISATEUR
 from app.models.status import (
     STATUS_FERME,
@@ -18,7 +18,7 @@ from app.models.status import (
     STATUS_RESOLU,
 )
 from app.models.status import Status as StatusModel
-from app.models.priority import Priority
+from app.models.priority import PRIORITY_NORMALE, Priority
 from app.models.ticket import Ticket
 from app.models.user import User
 from app.schemas.common import Message, Page, PaginationParams
@@ -65,6 +65,16 @@ def _get_status_by_name(db: Session, name: str) -> StatusModel:
             detail=f"Statut de référence « {name} » introuvable. Vérifiez les données de base (seed).",
         )
     return db_status
+
+
+def _get_priority_by_name(db: Session, name: str) -> Priority:
+    priority = db.query(Priority).filter(Priority.name == name).first()
+    if priority is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Priorité de référence « {name} » introuvable. Vérifiez les données de base (seed).",
+        )
+    return priority
 
 
 def _to_out(ticket: Ticket) -> TicketOut:
@@ -241,9 +251,16 @@ def create_ticket(payload: TicketCreate, current_user: User = Depends(require_us
     personne qui rencontre le problème. Techniciens, Responsables IT et Administrateurs
     traitent ou supervisent des tickets déjà existants, mais n'en créent jamais eux-mêmes.
     Le demandeur est toujours l'utilisateur connecté.
+
+    La priorité n'est plus choisie par l'utilisateur : toute valeur reçue dans
+    `payload.priority_id` est ignorée (même envoyée directement à l'API en
+    contournant l'interface) — chaque ticket démarre à la priorité par défaut
+    « Normale », ajustée ensuite par un Responsable IT/Administrateur via
+    l'endpoint dédié `change_priority` (ci-dessous, réservé à ces deux rôles).
     """
     nouveau_status = _get_status_by_name(db, STATUS_NOUVEAU)
-    sla = find_active_sla_for_priority(db, payload.priority_id)
+    default_priority = _get_priority_by_name(db, PRIORITY_NORMALE)
+    sla = find_active_sla_for_priority(db, default_priority.id)
 
     ticket = Ticket(
         reference=generate_ticket_reference(db),
@@ -251,7 +268,7 @@ def create_ticket(payload: TicketCreate, current_user: User = Depends(require_us
         description=payload.description,
         requester_id=current_user.id,
         category_id=payload.category_id,
-        priority_id=payload.priority_id,
+        priority_id=default_priority.id,
         equipment_id=payload.equipment_id,
         status_id=nouveau_status.id,
         sla_id=sla.id if sla else None,
@@ -447,9 +464,11 @@ def change_status(
 
 @router.post("/{ticket_id}/priority", response_model=TicketOut)
 def change_priority(
-    ticket_id: int, payload: TicketPriorityRequest, current_user: User = Depends(require_staff), db: Session = Depends(get_db)
+    ticket_id: int, payload: TicketPriorityRequest, current_user: User = Depends(require_manager), db: Session = Depends(get_db)
 ):
-    """Change la priorité d'un ticket et réévalue le SLA applicable en conséquence."""
+    """Change la priorité d'un ticket et réévalue le SLA applicable en conséquence.
+    Réservé à Responsable IT et Administrateur — un Technicien ne peut pas modifier
+    la priorité (resserré : auparavant ouvert à tout le personnel support)."""
     ticket = _get_ticket_or_404(db, ticket_id)
     old_priority_name = ticket.priority.name
     ticket.priority_id = payload.priority_id

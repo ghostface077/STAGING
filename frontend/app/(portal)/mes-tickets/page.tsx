@@ -34,7 +34,7 @@ export default function MyTicketsPage() {
   return (
     <div>
       <PageHeader
-        title="Mes tickets"
+        title={isRequesterView ? "Mes tickets" : "Tickets assignés"}
         description={isRequesterView ? "Les tickets que vous avez créés." : "Les tickets qui vous sont assignés."}
         actions={
           <Tabs value={view} onValueChange={(value) => setView(value as View)}>

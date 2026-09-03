@@ -37,7 +37,12 @@ export const PORTAL_NAV_GROUPS: NavGroup[] = [
         icon: Ticket,
         roles: ["Responsable IT", "Administrateur"],
       },
-      { label: "Mes tickets", href: "/mes-tickets", icon: ListChecks },
+      // "Mes tickets" (Utilisateur) et "Tickets assignés" (Technicien) pointent vers la
+      // même page (/mes-tickets, déjà adaptée au rôle) — seul l'intitulé de menu diffère :
+      // Responsable IT/Administrateur n'y voient rien d'utile (jamais assignés comme
+      // techniciens), ils n'ont donc pas d'entrée du tout vers cette page.
+      { label: "Mes tickets", href: "/mes-tickets", icon: ListChecks, roles: ["Utilisateur"] },
+      { label: "Tickets assignés", href: "/mes-tickets", icon: ListChecks, roles: ["Technicien"] },
       {
         label: "Non assignés",
         href: "/tickets/non-assignes",
