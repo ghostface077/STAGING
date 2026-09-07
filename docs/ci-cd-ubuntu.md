@@ -59,6 +59,13 @@ Dans chaque environnement, ajoutez ces secrets :
 Dans `production`, activez `Required reviewers`. La production nécessitera
 ainsi une approbation après le déploiement réussi sur staging.
 
+Ajoutez aussi dans l'environnement `production` :
+
+| Élément | Valeur |
+|---|---|
+| Secret `PROD_REPO_TOKEN` | Fine-grained Personal Access Token avec accès `Contents: Read and write` au dépôt `ghostface077/PROD` |
+| Variable `PROD_REPOSITORY` | `ghostface077/PROD` |
+
 Le secret `DEPLOY_ENV_FILE` doit contenir notamment :
 
 ```dotenv
@@ -116,9 +123,9 @@ docker compose -f docker-compose.prod.yml --env-file .env.production logs --tail
 	`production`.
 4. Cliquez sur `Review deployments`, sélectionnez `production`, puis validez.
 
-Le même commit sera alors déployé sur le serveur de production. Une Pull
-Request vers `master` reste recommandée pour conserver un historique propre,
-mais elle n'est plus nécessaire pour déclencher ce parcours.
+Le même commit sera alors déployé sur le serveur de production et publié dans
+le dépôt `ghostface077/PROD` sur la branche `main`. Une Pull Request vers
+`master` reste facultative dans le dépôt staging.
 
 ## 6. Retour arrière
 
