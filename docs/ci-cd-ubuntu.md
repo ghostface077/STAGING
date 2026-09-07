@@ -3,7 +3,7 @@
 Le parcours est :
 
 ```text
-branche de travail -> staging -> Pull Request -> master -> production
+push sur staging -> CI/CD -> staging -> approbation -> production
 ```
 
 GitHub Actions exécute les tests, construit les images et déploie par SSH sur
@@ -57,7 +57,7 @@ Dans chaque environnement, ajoutez ces secrets :
 | `DEPLOY_ENV_FILE` | contenu complet de l'environnement cible |
 
 Dans `production`, activez `Required reviewers`. La production nécessitera
-ainsi une approbation après la fusion dans `master`.
+ainsi une approbation après le déploiement réussi sur staging.
 
 Le secret `DEPLOY_ENV_FILE` doit contenir notamment :
 
@@ -110,12 +110,15 @@ docker compose -f docker-compose.prod.yml --env-file .env.production logs --tail
 
 ## 5. Promouvoir en production
 
-1. Ouvrez une Pull Request de `staging` vers `master`.
-2. Attendez la réussite des contrôles GitHub Actions.
-3. Fusionnez la Pull Request.
-4. Approuvez l'environnement GitHub `production`.
+1. Poussez votre code sur la branche `staging`.
+2. Attendez la réussite des tests, audits, builds et du déploiement staging.
+3. Ouvrez le workflow GitHub Actions en attente sur l'environnement
+	`production`.
+4. Cliquez sur `Review deployments`, sélectionnez `production`, puis validez.
 
-Le même commit sera alors déployé sur le serveur de production.
+Le même commit sera alors déployé sur le serveur de production. Une Pull
+Request vers `master` reste recommandée pour conserver un historique propre,
+mais elle n'est plus nécessaire pour déclencher ce parcours.
 
 ## 6. Retour arrière
 
