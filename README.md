@@ -21,6 +21,7 @@ Toute l'interface, les données de démonstration, les messages et la documentat
 - [Backend](#backend)
 - [API](#api)
 - [Tests](#tests)
+- [Pipeline CI/CD Ubuntu](#pipeline-cicd-ubuntu)
 - [Structure du projet](#structure-du-projet)
 - [Sécurité](#sécurité)
 - [Limites connues et pistes d'évolution](#limites-connues-et-pistes-dévolution)
@@ -222,6 +223,13 @@ pytest
 ```
 
 Couvre : authentification, création/attribution/résolution de tickets, permissions par rôle, visibilité des notes internes, calcul du respect des SLA.
+
+## Pipeline CI/CD Ubuntu
+
+Le pipeline GitHub Actions teste et construit l'application avec Docker Compose,
+la déploie d'abord sur `staging`, puis permet sa promotion vers `master` et la
+production Ubuntu après validation. Consultez le [guide CI/CD Ubuntu](docs/ci-cd-ubuntu.md)
+pour installer les serveurs et configurer les secrets GitHub.
 
 **Frontend** : l'application est validée par une compilation stricte (`npm run build`, TypeScript strict + ESLint) qui garantit l'absence d'erreur de typage ou de rendu. Les flux critiques (connexion, création de ticket, changement de statut, navigation) sont couverts manuellement via les scénarios de démonstration ci-dessus ; l'ajout de tests end-to-end (Playwright/Cypress) est documenté comme piste d'évolution.
 
