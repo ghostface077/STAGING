@@ -5,8 +5,14 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
+from app.config import settings
 from app.main import app
 from app.rate_limit import limiter
+
+
+@pytest.fixture(autouse=True)
+def override_upload_dir(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path / "uploads"))
 
 
 @pytest.fixture(autouse=True)

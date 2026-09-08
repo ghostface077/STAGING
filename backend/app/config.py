@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level: str = "INFO"
     backend_cors_origins: str = "http://localhost:3000"
-    upload_dir: str = "/app/uploads"
+    upload_dir: str = "./uploads"
     max_upload_size_mb: int = 15
 
     # Le seed (comptes de démonstration, dont l'administrateur par défaut) ne doit
