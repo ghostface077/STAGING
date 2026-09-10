@@ -36,6 +36,20 @@ et `-----END ... PRIVATE KEY-----`, sans guillemets. La clé doit être ajoutée
 dans les deux environnements si les jobs staging et production sont protégés
 par des secrets d'environnement distincts.
 
+Avant le premier déploiement, `DEPLOY_PATH` doit déjà exister et être
+accessible en écriture par `SERVER_USER`. Pour `/opt/it-support`, exécuter sur
+le serveur avec un compte administrateur :
+
+```sh
+sudo install -d -o <SERVER_USER> -g <SERVER_USER> -m 755 /opt/it-support
+sudo usermod -aG docker <SERVER_USER>
+```
+
+Après `usermod`, reconnecter le compte `SERVER_USER` pour que son appartenance
+au groupe `docker` soit prise en compte. Si `SERVER_USER` ne dispose pas de
+`sudo`, utiliser plutôt un chemin dans son dossier personnel, par exemple
+`/home/<SERVER_USER>/it-support`.
+
 `GITHUB_TOKEN` (utilisé par l'étape gitleaks) est fourni automatiquement par
 GitHub Actions — rien à configurer.
 

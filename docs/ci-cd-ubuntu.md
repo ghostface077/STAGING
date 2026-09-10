@@ -18,7 +18,7 @@ sudo apt update
 sudo apt install -y ca-certificates curl openssh-server
 curl -fsSL https://get.docker.com | sudo sh
 sudo usermod -aG docker "$USER"
-mkdir -p /opt/it-support
+sudo install -d -o "$USER" -g "$USER" -m 755 /opt/it-support
 ```
 
 Déconnectez-vous puis reconnectez-vous, puis vérifiez :
@@ -31,6 +31,21 @@ docker compose version
 Ouvrez les ports SSH `22` et HTTP `80`. Les ports applicatifs `3000` et
 `8000` sont utilisés par Compose ; l'accès public recommandé passe par Nginx
 sur le port `80`.
+
+Le compte indiqué par `SERVER_USER` doit être le même compte que celui utilisé
+ci-dessus et doit être propriétaire de `DEPLOY_PATH`. Sinon, le transfert SSH
+échoue avec `mkdir: Permission denied`. Vérifiez-le avec :
+
+```bash
+stat -c '%U:%G %A %n' /opt/it-support
+```
+
+Si le répertoire existe déjà, corrigez ses droits avec :
+
+```bash
+sudo chown -R "$USER":"$USER" /opt/it-support
+sudo chmod 755 /opt/it-support
+```
 
 ## 2. Créer la clé de déploiement
 
